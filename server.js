@@ -1,5 +1,5 @@
 import express from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { getPersona, getAllPersonas } from './personas/index.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -11,7 +11,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// GLM 클라이언트 (OpenAI 호환)
+const glm = new OpenAI({
+  baseURL: 'https://api.z.ai/api/coding/paas/v4',
+  apiKey: process.env.GLM_API_KEY || process.env.ZAI_API_KEY,
+});
 
 // 인메모리 세션 (MVP)
 const sessions = new Map();
@@ -23,6 +27,15 @@ setInterval(() => {
     if (now - s.lastActive > SESSION_TTL) sessions.delete(id);
   }
 }, 60_000);
+
+// 페르소나별 모델 맵
+const MODEL_MAP = {
+  dojun:  'glm-4.7',
+  jia:    'glm-4.7',
+  eric:   'glm-4.7-flash',  // 분석 → 빠른 flash
+  hana:   'glm-4.7',
+  minjun: 'glm-4.7-flash',  // 분석 → 빠른 flash
+};
 
 // 페르소나 목록 API
 app.get('/api/personas', (req, res) => {
@@ -54,33 +67,33 @@ app.post('/api/chat', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-6-20250514',
+    const model = MODEL_MAP[personaId] || 'glm-4.7';
+
+    const stream = await glm.chat.completions.create({
+      model: model,
+      messages: [
+        { role: 'system', content: persona.systemPrompt },
+        ...recentMessages,
+      ],
+      stream: true,
       max_tokens: 4096,
-      system: persona.systemPrompt,
-      messages: recentMessages,
     });
 
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
 
     let fullResponse = '';
 
-    stream.on('text', (text) => {
-      fullResponse += text;
-      res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
-    });
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || '';
+      if (text) {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
+      }
+    }
 
-    stream.on('end', () => {
-      session.messages.push({ role: 'assistant', content: fullResponse });
-      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-      res.end();
-    });
-
-    stream.on('error', (err) => {
-      console.error('Stream error:', err);
-      res.write(`data: ${JSON.stringify({ type: 'error', message: '응답 생성 중 오류가 발생했습니다.' })}\n\n`);
-      res.end();
-    });
+    session.messages.push({ role: 'assistant', content: fullResponse });
+    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    res.end();
   } catch (err) {
     console.error('API error:', err);
     res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 서비스 연결에 실패했습니다.' })}\n\n`);
