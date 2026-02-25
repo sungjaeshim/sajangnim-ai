@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>사장님AI — 채팅</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="chat-body">
+  <div class="chat-page">
+    <!-- 헤더 -->
+    <div class="chat-header" id="header-bar">
+      <button class="back" id="back-btn">←</button>
+      <span id="persona-name">로딩 중...</span>
+    </div>
+
+    <!-- 채팅 영역 -->
+    <div id="chat-messages" class="chat-messages"></div>
+
+    <!-- 입력 영역 -->
+    <div class="chat-input-area">
+      <textarea
+        id="chat-input"
+        placeholder="사장님 상황을 편하게 말씀해주세요..."
+        rows="1"
+        maxlength="2000"
+      ></textarea>
+      <button id="send-btn">전송</button>
+    </div>
+  </div>
+
+  <script src="/js/chat.js"></script>
+</body>
+</html>
