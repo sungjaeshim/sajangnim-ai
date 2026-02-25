@@ -1,10 +1,15 @@
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { getPersona, getAllPersonas } from './personas/index.js';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -86,7 +91,7 @@ app.post('/api/chat', async (req, res) => {
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
 // SPA 폴백
-app.get('/chat', (req, res) => res.sendFile('chat.html', { root: 'public' }));
+app.get('/chat', (req, res) => res.sendFile(path.join(__dirname, 'public', 'chat.html')));
 
 // 로컬 실행용
 if (process.env.NODE_ENV !== 'production' || process.env.PORT) {
