@@ -7,15 +7,12 @@
   <title>사장님AI — 자영업자 전용 AI 참모진</title>
   <link rel="stylesheet" href="/css/style.css">
   <script>
-    // CDN 로드 전 즉시 실행 — 세션 없으면 redirect (OAuth 콜백은 예외)
+    // 세션 없으면 즉시 redirect (OAuth 콜백은 예외 — auth.js가 처리)
     (function() {
-      var key = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
-      var hash = location.hash || '';
-      // OAuth 콜백: URL hash에 access_token 있으면 redirect 금지 (auth.js가 처리)
-      if (hash.includes('access_token') || hash.includes('error_description')) return;
-      if (!localStorage.getItem(key)) {
-        var ret = encodeURIComponent(location.pathname + location.search);
-        location.replace('/login.html?returnUrl=' + ret);
+      var h = location.hash || '';
+      if (h.includes('access_token') || h.includes('error_description')) return;
+      if (!localStorage.getItem('sb-xczegfsgxlnsvsmmrgaz-auth-token')) {
+        location.replace('/login.html?returnUrl=' + encodeURIComponent(location.pathname + location.search));
       }
     })();
   </script>
