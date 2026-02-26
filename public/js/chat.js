@@ -375,3 +375,26 @@ async function init() {
 }
 
 init();
+
+// 내보내기 버튼 이벤트
+document.addEventListener('click', function(e) {
+  const exportBtn = document.getElementById('export-btn');
+  const exportMenu = document.getElementById('export-menu');
+
+  if (e.target.closest('#export-btn')) {
+    exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
+    return;
+  }
+  if (e.target.closest('.export-option')) {
+    const format = e.target.closest('.export-option').dataset.format;
+    const personaName = window.currentPersona?.name || '사장님';
+    if (format === 'txt') window.exportChat.toTXT(window.chatMessages || [], personaName);
+    if (format === 'pdf') window.exportChat.toPDF(window.chatMessages || [], personaName);
+    exportMenu.style.display = 'none';
+    return;
+  }
+  // 외부 클릭 시 메뉴 닫기
+  if (exportMenu && !e.target.closest('#export-wrapper')) {
+    exportMenu.style.display = 'none';
+  }
+});
