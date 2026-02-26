@@ -248,6 +248,30 @@ async function saveMessages(conversationId, userMsg, assistantMsg, modelUsed) {
   }
 }
 
+// 대화 삭제
+app.delete('/api/conversations/:id', requireAuth, async (req, res) => {
+  try {
+    const { data: { user } } = await supabaseAdmin.auth.getUser(
+      req.headers.authorization?.replace('Bearer ', '')
+    );
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    // messages 먼저 삭제 (FK 제약)
+    await supabaseAdmin.from('messages').delete().eq('conversation_id', req.params.id);
+    // conversation 삭제
+    const { error } = await supabaseAdmin
+      .from('conversations')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', user.id); // 본인 것만
+
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 대화 메시지 조회
 app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
   const conversationId = req.params.id;

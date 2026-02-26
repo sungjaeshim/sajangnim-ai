@@ -269,6 +269,26 @@ body {
   cursor: pointer;
   transition: background 0.15s;
   border: 1.5px solid transparent;
+  position: relative;
+}
+
+.conv-delete {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.conversation-item:hover .conv-delete {
+  opacity: 1;
 }
 
 .conversation-item:hover {

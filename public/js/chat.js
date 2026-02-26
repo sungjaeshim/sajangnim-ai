@@ -93,6 +93,7 @@ function renderConversations() {
       <div class="conversation-item ${isActive}" data-id="${conv.id}" data-persona="${conv.persona_id}">
         <div class="conversation-title">${conv.title}</div>
         <div class="conversation-meta">${dateStr}</div>
+        <button class="conv-delete" data-id="${conv.id}" aria-label="삭제">🗑️</button>
       </div>
     `;
   }).join('');
@@ -157,7 +158,9 @@ async function sendMessage() {
   if (!text || isStreaming) return;
 
   input.value = '';
-  input.style.height = 'auto';
+  input.dispatchEvent(new Event('input')); // textarea auto-resize 초기화
+  input.blur();
+  setTimeout(() => { input.focus(); }, 0);
   addMessage('user', text);
 
   isStreaming = true;
@@ -259,6 +262,25 @@ document.addEventListener('click', (e) => {
 
   // 새 대화 버튼
   if (e.target.id === 'new-chat-btn' || e.target.closest('#new-chat-btn')) startNewConversation();
+
+  // 대화 삭제 버튼
+  const deleteBtn = e.target.closest('.conv-delete');
+  if (deleteBtn) {
+    e.stopPropagation();
+    const convId = deleteBtn.getAttribute('data-id');
+    if (confirm('이 대화를 삭제할까요?')) {
+      window.db.deleteConversation(convId).then(ok => {
+        if (ok) {
+          if (currentConversationId === convId) {
+            currentConversationId = null;
+            clearMessages();
+          }
+          loadConversations();
+        }
+      });
+    }
+    return;
+  }
 
   // 대화 아이템 클릭
   const convItem = e.target.closest('.conversation-item');

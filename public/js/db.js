@@ -45,6 +45,16 @@ window.db = {
     return await res.json();
   },
 
+  // 대화 삭제
+  async deleteConversation(conversationId) {
+    const token = await window.supabaseAuth.getToken();
+    const res = await fetch(`/api/conversations/${conversationId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    return res.ok;
+  },
+
   // 대화 메시지 조회
   async getMessages(conversationId) {
     const token = await window.supabaseAuth.getToken();
