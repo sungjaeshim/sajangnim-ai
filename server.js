@@ -63,8 +63,8 @@ app.get('/api/config', (req, res) => {
     return res.status(500).json({ error: 'Supabase 설정 누락' });
   }
   res.json({
-    supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+    supabaseUrl: process.env.SUPABASE_URL.trim(),
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY.trim()
   });
 });
 
