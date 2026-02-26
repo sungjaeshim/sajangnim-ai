@@ -40,6 +40,26 @@ const glm = new OpenAI({
   apiKey: API_KEY,
 });
 
+// OpenRouter 클라이언트
+const openrouterClient = new OpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+  defaultHeaders: { 'HTTP-Referer': 'https://aisnowball.work' }
+});
+
+// Ollama 클라이언트 (로컬)
+const ollamaClient = new OpenAI({
+  baseURL: 'http://100.116.158.17:11434/v1',
+  apiKey: 'ollama-local'
+});
+
+// 프로바이더별 클라이언트 선택
+function getClient(provider) {
+  if (provider === 'openrouter') return openrouterClient;
+  if (provider === 'ollama') return ollamaClient;
+  return glm; // 기본: zai/GLM
+}
+
 // Supabase 관리자 클라이언트 (JWT 검증용)
 const supabaseAdmin = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -57,9 +77,76 @@ setInterval(() => {
 
 app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 
-// 오픈 베타 기간: glm-4.7-flash 통일
-function selectModel(userMessage) {
-  return { model: 'glm-4.7-flash', thinking: false };
+// 3-Tier 모델 정의
+const MODELS = {
+  'nemotron':     { provider: 'openrouter', model: 'nvidia/nemotron-3-nano-30b-a3b:free' },
+  'glm-flash':    { provider: 'zai',        model: 'glm-4.7-flash' },
+  'glm-standard': { provider: 'zai',        model: 'glm-4.7' },
+  'q4-thinking':  { provider: 'ollama',     model: 'hf.co/unsloth/Qwen3-30B-A3B-GGUF:Q4_K_M' },
+  'q3-local':     { provider: 'ollama',     model: 'hf.co/unsloth/Qwen3-30B-A3B-GGUF:Q3_K_M' },
+};
+
+// 폴백 체인 정의 (우선순위대로 시도)
+const FALLBACK_CHAINS = {
+  'nemotron':     ['nemotron', 'glm-flash', 'q3-local'],
+  'glm-flash':    ['glm-flash', 'nemotron', 'q3-local'],
+  'glm-standard': ['glm-standard', 'glm-flash', 'nemotron'],
+  'q4-thinking':  ['q4-thinking', 'glm-standard', 'glm-flash'],
+  'q3-local':     ['q3-local', 'glm-flash'],
+};
+
+// 심층 분석 키워드
+const DEEP_KEYWORDS = ['계산', '분석', '전략', '수익', '비용', '매출',
+  '투자', '입지', '상권', '재무', '손익', '예산', '얼마', '퍼센트', '%'];
+
+// 3-Tier 모델 선택 (personaId + 메시지 분석)
+function selectModel(userMessage, personaId) {
+  const msg = userMessage?.toLowerCase() || '';
+  const len = msg.length;
+  const isDeep = DEEP_KEYWORDS.some(k => msg.includes(k));
+
+  const personaDefaults = {
+    eric:   isDeep ? 'q4-thinking' : 'glm-flash',
+    dojun:  isDeep ? 'glm-standard' : 'glm-flash',
+    minjun: isDeep ? 'glm-standard' : 'glm-flash',
+    hana:   'glm-flash',
+    jia:    len < 80 ? 'nemotron' : 'glm-flash',
+  };
+
+  const tier = personaDefaults[personaId] || 'glm-flash';
+  return { tier, ...MODELS[tier] };
+}
+
+// 폴백 시스템付き 호출
+async function callWithFallback(tierKey, messages, res) {
+  const chain = FALLBACK_CHAINS[tierKey] || ['glm-flash'];
+
+  for (const t of chain) {
+    const cfg = MODELS[t];
+    const client = getClient(cfg.provider);
+
+    try {
+      const extraBody = cfg.provider === 'zai' ? { enable_thinking: false } : undefined;
+
+      const stream = await client.chat.completions.create({
+        model: cfg.model,
+        messages,
+        stream: true,
+        max_tokens: 4096,
+        extra_body: extraBody,
+      });
+
+      // 성공: tier 정보 SSE로 전송 후 stream 반환
+      res.write(`data: ${JSON.stringify({ type: 'start', model: cfg.model, tier: t })}\n\n`);
+      console.log(`✅ ${t} (${cfg.model}) 성공`);
+      return { stream, modelUsed: cfg.model, tier: t };
+    } catch (err) {
+      console.warn(`⚠️ ${t} (${cfg.model}) 실패: ${err.message} → 다음 시도`);
+      continue;
+    }
+  }
+
+  throw new Error('모든 모델 실패');
 }
 
 // Supabase 설정 전달 (프론트엔드용)
@@ -396,23 +483,17 @@ app.post('/api/chat', optionalAuth, async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    // 모델 자동선택 (마지막 user 메시지 기준)
+    // 3-Tier 모델 자동선택 (personaId + 메시지 분석)
     const lastUserMessage = [...session.messages].reverse().find(m => m.role === 'user')?.content || '';
-    const modelConfig = selectModel(lastUserMessage);
-    console.log(`🤖 Model selected: ${modelConfig.model} (thinking: ${modelConfig.thinking})`);
+    const modelConfig = selectModel(lastUserMessage, personaId);
+    console.log(`🤖 Model selected tier: ${modelConfig.tier} → ${modelConfig.model}`);
 
-    const stream = await glm.chat.completions.create({
-      model: modelConfig.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...session.messages.slice(-40),
-      ],
-      stream: true,
-      max_tokens: 4096,
-      extra_body: { enable_thinking: false },
-    });
+    // 폴백 시스템付き 호출
+    const { stream, modelUsed, tier } = await callWithFallback(modelConfig.tier, [
+      { role: 'system', content: systemPrompt },
+      ...session.messages.slice(-40),
+    ], res);
 
-    res.write(`data: ${JSON.stringify({ type: 'start', model: modelConfig.model })}\n\n`);
     let fullResponse = '';
 
     for await (const chunk of stream) {
@@ -429,7 +510,8 @@ app.post('/api/chat', optionalAuth, async (req, res) => {
 
     // 대화 ID가 있으면 메시지 저장 (백그라운드)
     if (conversationId) {
-      saveMessages(conversationId, messages[messages.length - 1], { role: 'assistant', content: fullResponse }, modelConfig.model)
+      const modelUsedStr = `${modelUsed}(${tier})`;
+      saveMessages(conversationId, messages[messages.length - 1], { role: 'assistant', content: fullResponse }, modelUsedStr)
         .catch(err => console.error('Message save error:', err));
     }
 
