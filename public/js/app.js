@@ -1,10 +1,21 @@
+function _dbg(msg) {
+  var el = document.getElementById('_app_dbg');
+  if (!el) { el = document.createElement('div'); el.id = '_app_dbg'; el.style = 'position:fixed;bottom:30px;left:0;right:0;background:#0a0a2e;color:#0f0;font-size:11px;padding:4px 8px;z-index:9999;'; document.body.appendChild(el); }
+  el.textContent = msg; console.log('[app]', msg);
+}
+
 // 랜딩 페이지 — 페르소나 카드 렌더링
 async function loadPersonas() {
+  _dbg('loadPersonas() 시작');
   const grid = document.getElementById('persona-grid');
+  if (!grid) { _dbg('ERROR: persona-grid 없음'); return; }
 
   try {
+    _dbg('fetch /api/personas 중...');
     const res = await fetch('/api/personas');
+    _dbg('fetch 완료: status=' + res.status);
     const personas = await res.json();
+    _dbg('personas 수신: ' + personas.length + '개');
 
     grid.innerHTML = '';
 
@@ -26,9 +37,10 @@ async function loadPersonas() {
       grid.appendChild(card);
     });
   } catch (err) {
-    grid.innerHTML = `
+    _dbg('ERROR: ' + err.message);
+    if (grid) grid.innerHTML = `
       <div style="grid-column:1/-1;text-align:center;padding:2rem;">
-        <p style="color:#ef4444;margin-bottom:1rem;">서버 연결 실패</p>
+        <p style="color:#ef4444;margin-bottom:1rem;">서버 연결 실패: ${err.message}</p>
         <button id="retry-btn" aria-label="다시 시도">🔄 다시 시도</button>
       </div>
     `;
@@ -49,9 +61,11 @@ window.loadPersonas = initApp;
 // DOMContentLoaded에서 직접 실행 (requireLogin 결과 무관하게)
 // head script가 이미 비로그인 redirect 처리함
 document.addEventListener('DOMContentLoaded', function() {
-  // OAuth 콜백 (#access_token) 포함한 모든 index 페이지에서 바로 로드
   var path = location.pathname;
+  _dbg('DOMContentLoaded | path=' + path);
   if (path.includes('index') || path === '/') {
     loadPersonas();
+  } else {
+    _dbg('path 불일치 — loadPersonas 미실행: ' + path);
   }
 });
