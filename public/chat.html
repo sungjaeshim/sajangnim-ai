@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>사장님AI — 채팅</title>
   <link rel="stylesheet" href="/css/style.css">
+  <!-- PDF export library -->
   <!-- auth guard: auth.js requireLogin()이 담당 (Supabase getSession 비동기 대기) -->
 </head>
 <body class="chat-body">
@@ -48,3 +49,40 @@
               <button class="export-option" data-format="txt" aria-label="TXT로 저장">
                 📄 TXT로 저장
               </button>
+
+            </div>
+          </div>
+          <label class="format-toggle" title="답변 형식 전환">
+            <input type="checkbox" id="format-toggle" checked>
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+            <span class="toggle-label" id="toggle-label">📝 구조화</span>
+          </label>
+        </div>
+      </header>
+
+      <!-- 채팅 영역 -->
+      <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="채팅 메시지"></div>
+
+      <!-- 입력 영역 -->
+      <footer class="chat-input-area">
+        <textarea
+          id="chat-input"
+          placeholder="사장님 상황을 편하게 말씀해주세요..."
+          rows="1"
+          maxlength="2000"
+          aria-label="메시지 입력"
+        ></textarea>
+        <button id="send-btn" aria-label="메시지 전송">전송</button>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+  <script src="/js/chat.js"></script>
+  <script src="/js/export.js"></script>
+</body>
+</html>
