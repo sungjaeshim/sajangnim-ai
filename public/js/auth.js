@@ -44,19 +44,22 @@ async function requireLogin() {
   const returnUrl = encodeURIComponent(location.pathname + location.search);
   const hash = location.hash || '';
 
-  // OAuth 콜백: URL hash에 access_token 있으면 Supabase가 먼저 처리
+  // OAuth 콜백: URL hash에 access_token 있으면 직접 setSession 호출
   if (hash.includes('access_token')) {
-    const sb = await initSupabase();
-    if (sb) {
-      try {
-        const { data: { session } } = await sb.auth.getSession();
-        if (session) {
+    try {
+      const params = new URLSearchParams(hash.slice(1));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token') || '';
+      const sb = await initSupabase();
+      if (sb && accessToken) {
+        const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        if (data?.session) {
           history.replaceState(null, '', location.pathname);
-          user = session.user;
+          user = data.session.user;
           return true;
         }
-      } catch (e) {}
-    }
+      }
+    } catch (e) { console.error('[auth] OAuth callback 처리 실패:', e); }
     location.href = `/login.html?returnUrl=${returnUrl}`;
     return false;
   }
