@@ -57,6 +57,15 @@ setInterval(() => {
 
 app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 
+// GLM 3-tier 모델 자동선택
+function selectModel(userMessage) {
+  const text = userMessage || '';
+  const powerKeywords = /분석|전략|원가|수익|계획|비교|진단|예측|추천/;
+  if (powerKeywords.test(text)) return { model: 'glm-z1-air', thinking: true };
+  if (text.length < 80) return { model: 'glm-4-flash', thinking: false };
+  return { model: 'glm-4.7', thinking: false };
+}
+
 // Supabase 설정 전달 (프론트엔드용)
 app.get('/api/config', (req, res) => {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
@@ -140,23 +149,31 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
+    // 모델 자동선택 (마지막 user 메시지 기준)
+    const lastUserMessage = [...session.messages].reverse().find(m => m.role === 'user')?.content || '';
+    const modelConfig = selectModel(lastUserMessage);
+    console.log(`🤖 Model selected: ${modelConfig.model} (thinking: ${modelConfig.thinking})`);
+
     const stream = await glm.chat.completions.create({
-      model: 'glm-4.7-flash',
+      model: modelConfig.model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...session.messages.slice(-40),
       ],
       stream: true,
       max_tokens: 4096,
-      extra_body: { enable_thinking: false },
+      extra_body: modelConfig.thinking
+        ? { enable_thinking: true, thinking_budget: 3000 }
+        : { enable_thinking: false },
     });
 
-    res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'start', model: modelConfig.model })}\n\n`);
     let fullResponse = '';
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta || {};
       const text = delta.content || '';
+      // reasoning_content는 클라이언트에 전송하지 않음
       if (text) {
         fullResponse += text;
         res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
