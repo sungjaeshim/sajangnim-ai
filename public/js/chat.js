@@ -36,6 +36,11 @@ function addMessage(role, content) {
   div.innerHTML = formatMarkdown(content);
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+  // 내보내기용 배열 동기화
+  if (content) {
+    if (!window.chatMessages) window.chatMessages = [];
+    window.chatMessages.push({ role, content });
+  }
   return div;
 }
 
@@ -153,6 +158,7 @@ function startNewConversation() {
 function clearMessages() {
   const container = document.getElementById('chat-messages');
   container.innerHTML = '';
+  window.chatMessages = [];
 }
 
 function closeSidebar() {
