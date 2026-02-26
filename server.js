@@ -40,23 +40,16 @@ const glm = new OpenAI({
   apiKey: API_KEY,
 });
 
-// OpenRouter 클라이언트
+// OpenRouter 클라이언트 (Nemotron 등 무료 모델)
 const openrouterClient = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
   defaultHeaders: { 'HTTP-Referer': 'https://aisnowball.work' }
 });
 
-// Ollama 클라이언트 (로컬)
-const ollamaClient = new OpenAI({
-  baseURL: 'http://100.116.158.17:11434/v1',
-  apiKey: 'ollama-local'
-});
-
-// 프로바이더별 클라이언트 선택
+// 프로바이더별 클라이언트 선택 (Ollama 제외 — Vercel 배포 호환)
 function getClient(provider) {
   if (provider === 'openrouter') return openrouterClient;
-  if (provider === 'ollama') return ollamaClient;
   return glm; // 기본: zai/GLM
 }
 
@@ -77,22 +70,18 @@ setInterval(() => {
 
 app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 
-// 3-Tier 모델 정의
+// 3-Tier 모델 정의 (Vercel 호환 — Ollama 제외)
 const MODELS = {
   'nemotron':     { provider: 'openrouter', model: 'nvidia/nemotron-3-nano-30b-a3b:free' },
   'glm-flash':    { provider: 'zai',        model: 'glm-4.7-flash' },
   'glm-standard': { provider: 'zai',        model: 'glm-4.7' },
-  'q4-thinking':  { provider: 'ollama',     model: 'hf.co/unsloth/Qwen3-30B-A3B-GGUF:Q4_K_M' },
-  'q3-local':     { provider: 'ollama',     model: 'hf.co/unsloth/Qwen3-30B-A3B-GGUF:Q3_K_M' },
 };
 
 // 폴백 체인 정의 (우선순위대로 시도)
 const FALLBACK_CHAINS = {
-  'nemotron':     ['nemotron', 'glm-flash', 'q3-local'],
-  'glm-flash':    ['glm-flash', 'nemotron', 'q3-local'],
+  'nemotron':     ['nemotron', 'glm-flash', 'glm-standard'],
+  'glm-flash':    ['glm-flash', 'nemotron', 'glm-standard'],
   'glm-standard': ['glm-standard', 'glm-flash', 'nemotron'],
-  'q4-thinking':  ['q4-thinking', 'glm-standard', 'glm-flash'],
-  'q3-local':     ['q3-local', 'glm-flash'],
 };
 
 // 심층 분석 키워드
@@ -106,11 +95,11 @@ function selectModel(userMessage, personaId) {
   const isDeep = DEEP_KEYWORDS.some(k => msg.includes(k));
 
   const personaDefaults = {
-    eric:   isDeep ? 'q4-thinking' : 'glm-flash',
-    dojun:  isDeep ? 'glm-standard' : 'glm-flash',
-    minjun: isDeep ? 'glm-standard' : 'glm-flash',
-    hana:   'glm-flash',
-    jia:    len < 80 ? 'nemotron' : 'glm-flash',
+    eric:   isDeep ? 'glm-standard' : 'glm-flash',  // CFO: 계산 → GLM-4.7 (정확)
+    dojun:  isDeep ? 'glm-standard' : 'glm-flash',  // 전략가
+    minjun: isDeep ? 'glm-standard' : 'glm-flash',  // 상권분석
+    hana:   'glm-flash',                             // 브랜딩: 창의성
+    jia:    len < 80 ? 'nemotron' : 'glm-flash',     // 마케터: 짧은 질문 → Nemotron
   };
 
   const tier = personaDefaults[personaId] || 'glm-flash';
