@@ -242,11 +242,14 @@ async function initLoginPage() {
     showError(decodeURIComponent(error));
   }
 
+  // 회원가입/로그인 모드 상태 (최상단 선언)
+  let isSignupMode = false;
+
   // 소셜 로그인 버튼
   document.getElementById('btn-kakao').addEventListener('click', signInWithKakao);
   document.getElementById('btn-google').addEventListener('click', signInWithGoogle);
 
-  // 이메일 폼 제출
+  // 이메일 폼 제출 (로그인 / 회원가입 공용)
   const emailForm = document.getElementById('email-form');
   emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -258,37 +261,43 @@ async function initLoginPage() {
       return;
     }
 
-    const submitBtn = document.getElementById('btn-submit');
-    submitBtn.disabled = true;
-    submitBtn.textContent = '로그인 중...';
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.textContent = isSignupMode ? '가입 중...' : '로그인 중...';
 
-    await signInWithEmail(email, password);
-
-    submitBtn.disabled = false;
-    submitBtn.textContent = '로그인';
-  });
-
-  // 회원가입 (간단한 프롬프트)
-  document.getElementById('btn-signup').addEventListener('click', (e) => {
-    e.preventDefault();
-    const email = prompt('가입할 이메일 주소를 입력해주세요:');
-    if (!email) return;
-
-    const password = prompt('비밀번호를 입력해주세요 (6자 이상):');
-    if (!password) return;
-
-    signUpWithEmail(email.trim(), password);
-  });
-
-  // 이미 로그인되어 있으면 홈으로
-  const sb = await initSupabase();
-  if (sb) {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) {
-      const returnUrl = params.get('returnUrl');
-      location.href = returnUrl ? decodeURIComponent(returnUrl) : '/index.html';
+    if (isSignupMode) {
+      await signUpWithEmail(email, password);
+    } else {
+      await signInWithEmail(email, password);
     }
-  }
+
+    btn.disabled = false;
+    btn.textContent = isSignupMode ? '회원가입' : '로그인';
+  });
+
+  // 회원가입 — 폼 모드 전환 (prompt() 대신)
+  const submitBtn = document.getElementById('btn-submit');
+  const signupLink = document.getElementById('btn-signup');
+
+  signupLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    isSignupMode = !isSignupMode;
+    submitBtn.textContent = isSignupMode ? '회원가입' : '로그인';
+    signupLink.textContent = isSignupMode ? '로그인으로 돌아가기' : '회원가입';
+  });
+
+  // 이미 로그인되어 있는지 비동기 체크 (이벤트 리스너 설정 후 백그라운드에서)
+  setTimeout(async () => {
+    try {
+      const sb = await initSupabase();
+      if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        const returnUrl = params.get('returnUrl');
+        location.href = returnUrl ? decodeURIComponent(returnUrl) : '/index.html';
+      }
+    } catch (e) { /* 세션 체크 실패 무시 */ }
+  }, 0);
 }
 
 // 메인 페이지 초기화 (로그아웃 버튼 등)
@@ -308,9 +317,8 @@ async function initMainPage() {
 
 // 페이지별 초기화
 document.addEventListener('DOMContentLoaded', async () => {
-  // login 페이지만 initSupabase 선호출, 나머지는 requireLogin()이 처리
   if (location.pathname.includes('login.html')) {
-    await initSupabase();
+    // initSupabase() 호출 없이 바로 이벤트 리스너 세팅 (Supabase 행 방지)
     await initLoginPage();
   } else if (location.pathname.includes('index.html') || location.pathname === '/') {
     await initMainPage();
