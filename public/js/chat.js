@@ -6,6 +6,12 @@ const sessionId = crypto.randomUUID();
 let isStreaming = false;
 let currentColor = '#4F46E5';
 let formatMode = localStorage.getItem(`formatMode_${personaId}`) !== 'plain' ? 'structured' : 'plain';
+let currentPersonaName = '사장님';
+let chatMessages = [];
+
+// 전역 노출 (내보내기용)
+window.chatMessages = chatMessages;
+window.currentPersonaName = currentPersonaName;
 
 // 마크다운 → HTML 변환 (기본)
 function formatMarkdown(text) {
