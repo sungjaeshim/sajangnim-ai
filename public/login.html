@@ -55,16 +55,10 @@
   <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- 진단 배너 (임시) -->
-  <div id="_dbg" style="position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;color:#00ff88;font-size:11px;padding:4px 8px;z-index:9999;display:none;"></div>
-
   <!-- 로그인 인라인 스크립트 — auth.js 불필요 -->
   <script>
     (function() {
-      var dbg = document.getElementById('_dbg');
       function log(msg) {
-        dbg.style.display = 'block';
-        dbg.textContent = msg;
         console.log('[login]', msg);
       }
 
