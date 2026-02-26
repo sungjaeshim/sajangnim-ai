@@ -41,30 +41,36 @@ async function initSupabase() {
 
 // 인증 가드 - 로그인이 필요한 페이지
 async function requireLogin() {
-  const sb = await initSupabase();
-  if (!sb) {
-    // 초기화 실패 → 무조건 로그인 페이지로
-    const returnUrl = encodeURIComponent(location.pathname + location.search);
-    location.href = `/login.html?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패. 다시 시도해주세요.')}`;
+  const returnUrl = encodeURIComponent(location.pathname + location.search);
+
+  // ① 빠른 체크: localStorage에 세션 없으면 즉시 redirect (네트워크 불필요)
+  const SESSION_KEY = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
+  const cached = localStorage.getItem(SESSION_KEY);
+  if (!cached) {
+    location.href = `/login.html?returnUrl=${returnUrl}`;
     return false;
   }
 
-  // getSession에 타임아웃 적용 (3초)
+  // ② localStorage에 세션 있으면 Supabase로 검증
+  const sb = await initSupabase();
+  if (!sb) {
+    location.href = `/login.html?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패')}`;
+    return false;
+  }
+
+  // ③ getSession 검증 (3초 타임아웃)
   let session = null;
   try {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
     const result = await Promise.race([sb.auth.getSession(), timeout]);
     session = result?.data?.session || null;
   } catch {
-    // 타임아웃 or 에러 → 로그인 페이지로
-    const returnUrl = encodeURIComponent(location.pathname + location.search);
-    location.href = `/login.html?returnUrl=${returnUrl}`;
-    return false;
+    // 타임아웃: localStorage 있으니 일단 통과 (만료된 세션은 API에서 걸림)
+    const raw = JSON.parse(cached);
+    session = raw?.session || raw || null;
   }
 
   if (!session) {
-    // 현재 경로 저장 (로그인 후 복귀용)
-    const returnUrl = encodeURIComponent(location.pathname + location.search);
     location.href = `/login.html?returnUrl=${returnUrl}`;
     return false;
   }
@@ -302,9 +308,9 @@ async function initMainPage() {
 
 // 페이지별 초기화
 document.addEventListener('DOMContentLoaded', async () => {
-  const sb = await initSupabase();
-
+  // login 페이지만 initSupabase 선호출, 나머지는 requireLogin()이 처리
   if (location.pathname.includes('login.html')) {
+    await initSupabase();
     await initLoginPage();
   } else if (location.pathname.includes('index.html') || location.pathname === '/') {
     await initMainPage();
