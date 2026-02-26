@@ -16,21 +16,10 @@ const API_BASE = 'https://api.z.ai/api/coding/paas/v4';
 
 if (!API_KEY) console.error('⚠️ GLM_API_KEY not set!');
 
-// Custom fetch: enable_thinking: false 주입
+// GLM 클라이언트 (OpenAI 호환)
 const glm = new OpenAI({
   baseURL: API_BASE,
   apiKey: API_KEY,
-  fetch: async (url, init) => {
-    // request body에 enable_thinking: false 주입
-    if (init?.body) {
-      try {
-        const body = JSON.parse(init.body);
-        body.enable_thinking = false;
-        init = { ...init, body: JSON.stringify(body) };
-      } catch {}
-    }
-    return globalThis.fetch(url, init);
-  },
 });
 
 // 인메모리 세션 (MVP)
@@ -77,6 +66,7 @@ app.post('/api/chat', async (req, res) => {
       ],
       stream: true,
       max_tokens: 4096,
+      extra_body: { enable_thinking: false },
     });
 
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
