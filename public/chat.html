@@ -5,15 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>사장님AI — 채팅</title>
   <link rel="stylesheet" href="/css/style.css">
-  <script>
-    (function() {
-      var key = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
-      if (!localStorage.getItem(key)) {
-        var ret = encodeURIComponent(location.pathname + location.search);
-        location.replace('/login.html?returnUrl=' + ret);
-      }
-    })();
-  </script>
+  <!-- auth guard: auth.js requireLogin()이 담당 (Supabase getSession 비동기 대기) -->
 </head>
 <body class="chat-body">
   <main class="chat-page">

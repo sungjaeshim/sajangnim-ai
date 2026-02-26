@@ -6,16 +6,7 @@
   <meta name="description" content="자영업자를 위한 AI 참모진. 전략, 마케팅, 수익분석, 브랜딩, 경쟁분석을 도와드립니다.">
   <title>사장님AI — 자영업자 전용 AI 참모진</title>
   <link rel="stylesheet" href="/css/style.css">
-  <script>
-    // 세션 없으면 즉시 redirect (OAuth 콜백은 예외 — auth.js가 처리)
-    (function() {
-      var h = location.hash || '';
-      if (h.includes('access_token') || h.includes('error_description')) return;
-      if (!localStorage.getItem('sb-xczegfsgxlnsvsmmrgaz-auth-token')) {
-        location.replace('/login.html?returnUrl=' + encodeURIComponent(location.pathname + location.search));
-      }
-    })();
-  </script>
+    <!-- auth guard: auth.js requireLogin()이 담당 -->
 </head>
 <body>
   <main class="landing">
