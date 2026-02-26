@@ -1,13 +1,20 @@
 // Supabase Auth 모듈 — 재설계 by Opus
 // 핵심: detectSessionInUrl:true로 Supabase가 OAuth hash를 자동 처리
 let supabase = null;
+let _initPromise = null; // 레이스컨디션 방지
 let user = null;
 
 const SESSION_KEY = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
 
-// Supabase 초기화 (싱글턴)
+// Supabase 초기화 (싱글턴 + Promise 레이스 방지)
 async function initSupabase() {
   if (supabase) return supabase;
+  if (_initPromise) return _initPromise; // 이미 초기화 중이면 같은 Promise 공유
+  _initPromise = _doInitSupabase();
+  return _initPromise;
+}
+
+async function _doInitSupabase() {
 
   if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
     console.error('[auth] Supabase CDN 미로드');
@@ -41,6 +48,7 @@ async function initSupabase() {
 }
 
 // 인증 가드 — 세션 없으면 login.html redirect
+// chat.js는 직접 window.supabaseAuth.requireLogin() 호출 — auth.js DOMContentLoaded에서 중복 호출 안 함
 async function requireLogin() {
   const sb = await initSupabase();
   if (!sb) {
@@ -223,9 +231,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initMainPage();
     const loggedIn = await requireLogin();
     if (loggedIn && typeof window.loadPersonas === 'function') window.loadPersonas();
-  } else if (path.includes('chat')) {
-    await requireLogin();
   }
+  // chat 페이지: chat.js가 직접 requireLogin() 처리 — 여기서 중복 호출 금지
 });
 
 // 전역 노출
