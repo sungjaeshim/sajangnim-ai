@@ -16,7 +16,22 @@ const API_BASE = 'https://api.z.ai/api/coding/paas/v4';
 
 if (!API_KEY) console.error('⚠️ GLM_API_KEY not set!');
 
-const glm = new OpenAI({ baseURL: API_BASE, apiKey: API_KEY });
+// Custom fetch: enable_thinking: false 주입
+const glm = new OpenAI({
+  baseURL: API_BASE,
+  apiKey: API_KEY,
+  fetch: async (url, init) => {
+    // request body에 enable_thinking: false 주입
+    if (init?.body) {
+      try {
+        const body = JSON.parse(init.body);
+        body.enable_thinking = false;
+        init = { ...init, body: JSON.stringify(body) };
+      } catch {}
+    }
+    return globalThis.fetch(url, init);
+  },
+});
 
 // 인메모리 세션 (MVP)
 const sessions = new Map();
@@ -54,8 +69,7 @@ app.post('/api/chat', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    // OpenAI SDK의 _client.post를 직접 사용하여 enable_thinking 전달
-    const response = await glm.chat.completions.create({
+    const stream = await glm.chat.completions.create({
       model: 'glm-4.7-flash',
       messages: [
         { role: 'system', content: persona.systemPrompt },
@@ -68,10 +82,9 @@ app.post('/api/chat', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
     let fullResponse = '';
 
-    for await (const chunk of response) {
+    for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta || {};
-      // content 우선, reasoning_content 폴백 (GLM thinking 모델 대응)
-      const text = delta.content || delta.reasoning_content || '';
+      const text = delta.content || '';
       if (text) {
         fullResponse += text;
         res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
