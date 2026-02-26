@@ -299,7 +299,7 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
     res.json({ personaId: conv.persona_id, messages: data || [] });
   } catch (err) {
     console.error('Get messages error:', err);
-    res.status(500).json({ error: '메시지 조회 실패' });
+    res.status(500).json({ error: '메시지 조회 실패', detail: err.message });
   }
 });
 
