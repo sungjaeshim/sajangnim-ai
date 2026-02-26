@@ -7,6 +7,11 @@ async function initSupabase() {
   if (supabase) return supabase;
 
   try {
+    // CDN 로드 확인
+    if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
+      throw new Error('Supabase CDN 로드 실패');
+    }
+
     const config = await fetch('/api/config').then(r => {
       if (!r.ok) throw new Error('설정 로드 실패');
       return r.json();
@@ -42,11 +47,25 @@ async function initSupabase() {
 async function requireLogin() {
   const sb = await initSupabase();
   if (!sb) {
-    showError('인증 시스템을 초기화할 수 없습니다');
+    // 초기화 실패 → 무조건 로그인 페이지로
+    const returnUrl = encodeURIComponent(location.pathname + location.search);
+    location.href = `/login.html?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패. 다시 시도해주세요.')}`;
     return false;
   }
 
-  const { data: { session } } = await sb.auth.getSession();
+  // getSession에 타임아웃 적용 (3초)
+  let session = null;
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
+    const result = await Promise.race([sb.auth.getSession(), timeout]);
+    session = result?.data?.session || null;
+  } catch {
+    // 타임아웃 or 에러 → 로그인 페이지로
+    const returnUrl = encodeURIComponent(location.pathname + location.search);
+    location.href = `/login.html?returnUrl=${returnUrl}`;
+    return false;
+  }
+
   if (!session) {
     // 현재 경로 저장 (로그인 후 복귀용)
     const returnUrl = encodeURIComponent(location.pathname + location.search);
