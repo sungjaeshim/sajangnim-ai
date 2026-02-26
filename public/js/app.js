@@ -39,11 +39,19 @@ async function loadPersonas() {
   }
 }
 
-// auth.js가 requireLogin() + redirect 담당
-// app.js는 페르소나 로드만 담당 (auth.js DOMContentLoaded 이후 실행)
 function initApp() {
   loadPersonas();
 }
 
-// window.loadPersonas = initApp 으로 auth.js에서 호출 가능하게 노출
+// auth.js에서 호출 가능하게 노출
 window.loadPersonas = initApp;
+
+// DOMContentLoaded에서 직접 실행 (requireLogin 결과 무관하게)
+// head script가 이미 비로그인 redirect 처리함
+document.addEventListener('DOMContentLoaded', function() {
+  // OAuth 콜백 (#access_token) 포함한 모든 index 페이지에서 바로 로드
+  var path = location.pathname;
+  if (path.includes('index') || path === '/') {
+    loadPersonas();
+  }
+});
