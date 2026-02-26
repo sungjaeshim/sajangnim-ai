@@ -13,7 +13,6 @@
       <h1>사장님AI</h1>
       <p class="subtitle">로그인하세요</p>
 
-      <!-- 소셜 로그인 버튼 -->
       <div class="social-buttons">
         <button type="button" class="btn-kakao" id="btn-kakao" aria-label="카카오 로그인">
           <span class="icon-kakao">💬</span>
@@ -30,54 +29,169 @@
         </button>
       </div>
 
-      <!-- 구분선 -->
-      <div class="divider">
-        <span>또는</span>
-      </div>
+      <div class="divider"><span>또는</span></div>
 
-      <!-- 이메일 로그인 폼 -->
       <form class="email-form" id="email-form" method="post" action="javascript:void(0)">
         <div class="form-group">
           <label for="email" class="sr-only">이메일</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="이메일 주소"
-            required
-            autocomplete="email"
-            aria-label="이메일 주소"
-          >
+          <input type="email" id="email" name="email" placeholder="이메일 주소" required autocomplete="email">
         </div>
         <div class="form-group">
           <label for="password" class="sr-only">비밀번호</label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            placeholder="비밀번호"
-            required
-            autocomplete="current-password"
-            aria-label="비밀번호"
-          >
+          <input type="password" id="password" name="password" placeholder="비밀번호" required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn-submit" id="btn-submit" aria-label="이메일 로그인">
-          로그인
-        </button>
+        <button type="submit" class="btn-submit" id="btn-submit">로그인</button>
       </form>
 
-      <!-- 회원가입 링크 -->
       <div class="signup-link">
         계정이 없으신가요?
-        <a href="#signup" id="btn-signup" role="button">회원가입</a>
+        <a href="javascript:void(0)" id="btn-signup" role="button">회원가입</a>
       </div>
 
-      <!-- 에러 메시지 -->
       <div class="error-message" id="error-message" role="alert" aria-live="polite"></div>
     </div>
   </main>
 
+  <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/js/auth.js"></script>
+
+  <!-- 진단 배너 (임시) -->
+  <div id="_dbg" style="position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;color:#00ff88;font-size:11px;padding:4px 8px;z-index:9999;display:none;"></div>
+
+  <!-- 로그인 인라인 스크립트 — auth.js 불필요 -->
+  <script>
+    (function() {
+      var dbg = document.getElementById('_dbg');
+      function log(msg) {
+        dbg.style.display = 'block';
+        dbg.textContent = msg;
+        console.log('[login]', msg);
+      }
+
+      function showError(msg) {
+        var el = document.getElementById('error-message');
+        if (el) { el.textContent = msg; el.classList.add('show'); }
+        log('ERROR: ' + msg);
+      }
+
+      log('스크립트 시작');
+
+      // Supabase 클라이언트
+      var sb = null;
+      async function getClient() {
+        if (sb) return sb;
+        try {
+          log('config 로드 중...');
+          var cfg = await fetch('/api/config').then(function(r) { return r.json(); });
+          sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+          log('Supabase 초기화 완료');
+          return sb;
+        } catch(e) {
+          showError('서버 연결 실패: ' + e.message);
+          return null;
+        }
+      }
+
+      var isSignupMode = false;
+      var params = new URLSearchParams(location.search);
+      var returnUrl = params.get('returnUrl') || '/index.html';
+
+      // 에러 파라미터 처리
+      if (params.get('error')) showError(decodeURIComponent(params.get('error')));
+
+      // 카카오 로그인
+      document.getElementById('btn-kakao').addEventListener('click', async function() {
+        log('카카오 클릭');
+        var client = await getClient();
+        if (!client) return;
+        var result = await client.auth.signInWithOAuth({
+          provider: 'kakao',
+          options: { redirectTo: window.location.origin + '/index.html' }
+        });
+        if (result.error) showError('카카오 오류: ' + result.error.message);
+      });
+
+      // 구글 로그인
+      document.getElementById('btn-google').addEventListener('click', async function() {
+        log('구글 클릭');
+        var client = await getClient();
+        if (!client) return;
+        var result = await client.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin + '/index.html' }
+        });
+        if (result.error) showError('구글 오류: ' + result.error.message);
+      });
+
+      // 이메일 폼
+      document.getElementById('email-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var email = document.getElementById('email').value.trim();
+        var pass = document.getElementById('password').value;
+        if (!email || !pass) { showError('이메일과 비밀번호를 입력해주세요'); return; }
+
+        var btn = document.getElementById('btn-submit');
+        btn.disabled = true;
+        btn.textContent = isSignupMode ? '가입 중...' : '로그인 중...';
+        log((isSignupMode ? '회원가입' : '로그인') + ' 시도: ' + email);
+
+        var client = await getClient();
+        if (!client) { btn.disabled = false; btn.textContent = isSignupMode ? '회원가입' : '로그인'; return; }
+
+        try {
+          if (isSignupMode) {
+            var r = await client.auth.signUp({ email: email, password: pass,
+              options: { emailRedirectTo: window.location.origin + '/login.html' } });
+            if (r.error) throw r.error;
+            if (r.data.user && !r.data.session) {
+              showError('인증 이메일이 발송되었습니다. 확인 후 로그인해주세요.');
+            } else {
+              location.href = decodeURIComponent(returnUrl);
+            }
+          } else {
+            var r = await client.auth.signInWithPassword({ email: email, password: pass });
+            if (r.error) throw r.error;
+            log('로그인 성공! 이동 중...');
+            location.href = decodeURIComponent(returnUrl);
+          }
+        } catch(err) {
+          var msgs = {
+            'Invalid login credentials': '이메일 또는 비밀번호가 올바르지 않습니다',
+            'Email not confirmed': '이메일 인증이 필요합니다',
+            'User already registered': '이미 가입된 이메일입니다',
+            'Password should be at least 6 characters': '비밀번호는 6자 이상이어야 합니다'
+          };
+          showError(msgs[err.message] || err.message);
+        }
+        btn.disabled = false;
+        btn.textContent = isSignupMode ? '회원가입' : '로그인';
+      });
+
+      // 회원가입/로그인 모드 전환
+      document.getElementById('btn-signup').addEventListener('click', function(e) {
+        e.preventDefault();
+        isSignupMode = !isSignupMode;
+        document.getElementById('btn-submit').textContent = isSignupMode ? '회원가입' : '로그인';
+        document.getElementById('btn-signup').textContent = isSignupMode ? '로그인으로 돌아가기' : '회원가입';
+        log('모드: ' + (isSignupMode ? '회원가입' : '로그인'));
+      });
+
+      log('이벤트 리스너 등록 완료 ✅');
+
+      // 이미 로그인된 경우 홈으로
+      setTimeout(async function() {
+        var client = await getClient();
+        if (!client) return;
+        try {
+          var s = await client.auth.getSession();
+          if (s.data && s.data.session) {
+            log('기존 세션 발견, 홈으로 이동');
+            location.href = decodeURIComponent(returnUrl);
+          }
+        } catch(e) {}
+      }, 500);
+
+    })();
+  </script>
 </body>
 </html>
