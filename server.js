@@ -1,5 +1,6 @@
 import express from 'express';
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 import { getPersona, getAllPersonas } from './personas/index.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -39,6 +40,11 @@ const glm = new OpenAI({
   apiKey: API_KEY,
 });
 
+// Supabase 관리자 클라이언트 (JWT 검증용)
+const supabaseAdmin = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
 // 인메모리 세션 (MVP)
 const sessions = new Map();
 const SESSION_TTL = 30 * 60 * 1000;
@@ -51,9 +57,40 @@ setInterval(() => {
 
 app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 
+// Supabase 설정 전달 (프론트엔드용)
+app.get('/api/config', (req, res) => {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return res.status(500).json({ error: 'Supabase 설정 누락' });
+  }
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+  });
+});
+
+// JWT 검증 미들웨어
+async function requireAuth(req, res, next) {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: '인증 시스템이 설정되지 않았습니다' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: '로그인이 필요합니다' });
+  }
+
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) {
+    return res.status(401).json({ error: '인증 실패' });
+  }
+
+  req.user = user;
+  next();
+}
+
 // 채팅 API (SSE)
-app.post('/api/chat', async (req, res) => {
-  const { persona: personaId, messages, sessionId } = req.body;
+app.post('/api/chat', requireAuth, async (req, res) => {
+  const { persona: personaId, messages, sessionId, formatMode } = req.body;
 
   // Rate limiting
   const ip = req.ip || req.connection.remoteAddress;
@@ -83,6 +120,12 @@ app.post('/api/chat', async (req, res) => {
   const persona = getPersona(personaId);
   if (!persona) return res.status(400).json({ error: 'Invalid persona' });
 
+  // 포맷 모드에 따른 시스템 프롬프트 수정
+  let systemPrompt = persona.systemPrompt;
+  if (formatMode === 'plain') {
+    systemPrompt += '\n\n## 응답 형식 규칙\n절대로 마크다운, 이모지, 굵은 글씨(**텍스트**), 목록(-, *, •, 숫자), 헤더(#)를 사용하지 마세요. 자연스러운 한국어 줄글(산문) 형식으로만 답변하세요.';
+  }
+
   let session = sessions.get(sessionId);
   if (!session) {
     session = { messages: [], lastActive: Date.now() };
@@ -100,7 +143,7 @@ app.post('/api/chat', async (req, res) => {
     const stream = await glm.chat.completions.create({
       model: 'glm-4.7-flash',
       messages: [
-        { role: 'system', content: persona.systemPrompt },
+        { role: 'system', content: systemPrompt },
         ...session.messages.slice(-40),
       ],
       stream: true,

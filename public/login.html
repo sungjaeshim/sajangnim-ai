@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>로그인 — 사장님AI</title>
+  <link rel="stylesheet" href="/css/login.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <main class="login-container">
+    <div class="login-card">
+      <div class="logo">🏪</div>
+      <h1>사장님AI</h1>
+      <p class="subtitle">로그인하세요</p>
+
+      <!-- 소셜 로그인 버튼 -->
+      <div class="social-buttons">
+        <button class="btn-kakao" id="btn-kakao" aria-label="카카오 로그인">
+          <span class="icon-kakao">💬</span>
+          카카오로 시작하기
+        </button>
+        <button class="btn-google" id="btn-google" aria-label="구글 로그인">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.252-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.715H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.27C4.672 5.14 6.656 3.58 9 3.58z"/>
+          </svg>
+          구글로 시작하기
+        </button>
+      </div>
+
+      <!-- 구분선 -->
+      <div class="divider">
+        <span>또는</span>
+      </div>
+
+      <!-- 이메일 로그인 폼 -->
+      <form class="email-form" id="email-form">
+        <div class="form-group">
+          <label for="email" class="sr-only">이메일</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="이메일 주소"
+            required
+            autocomplete="email"
+            aria-label="이메일 주소"
+          >
+        </div>
+        <div class="form-group">
+          <label for="password" class="sr-only">비밀번호</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="비밀번호"
+            required
+            autocomplete="current-password"
+            aria-label="비밀번호"
+          >
+        </div>
+        <button type="submit" class="btn-submit" id="btn-submit" aria-label="이메일 로그인">
+          로그인
+        </button>
+      </form>
+
+      <!-- 회원가입 링크 -->
+      <div class="signup-link">
+        계정이 없으신가요?
+        <a href="#signup" id="btn-signup" role="button">회원가입</a>
+      </div>
+
+      <!-- 에러 메시지 -->
+      <div class="error-message" id="error-message" role="alert" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>

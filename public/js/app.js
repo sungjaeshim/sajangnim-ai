@@ -39,4 +39,12 @@ async function loadPersonas() {
   }
 }
 
-loadPersonas();
+// 로그인 확인 후 페르소나 로드
+async function initApp() {
+  const loggedIn = await window.supabaseAuth.requireLogin();
+  if (loggedIn) {
+    loadPersonas();
+  }
+}
+
+initApp();

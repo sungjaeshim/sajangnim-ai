@@ -5,6 +5,7 @@ const sessionId = crypto.randomUUID();
 
 let isStreaming = false;
 let currentColor = '#4F46E5';
+let formatMode = localStorage.getItem(`formatMode_${personaId}`) !== 'plain' ? 'structured' : 'plain';
 
 // 마크다운 → HTML 변환 (기본)
 function formatMarkdown(text) {
@@ -71,13 +72,22 @@ async function sendMessage() {
   addTypingIndicator();
 
   try {
+    // JWT 토큰 가져오기
+    const token = await window.supabaseAuth.getToken();
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         persona: personaId,
         sessionId,
         messages: [{ role: 'user', content: text }],
+        formatMode,
       }),
     });
 
@@ -144,9 +154,31 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// 토글 UI 업데이트
+function updateToggleUI() {
+  const toggle = document.getElementById('format-toggle');
+  const label = document.getElementById('toggle-label');
+  const isStructured = formatMode === 'structured';
+  toggle.checked = isStructured;
+  label.textContent = isStructured ? '📝 구조화' : '📄 줄글';
+}
+
+// 포맷 토글 이벤트 핸들러
+function setupFormatToggle() {
+  const toggle = document.getElementById('format-toggle');
+  toggle.addEventListener('change', () => {
+    formatMode = toggle.checked ? 'structured' : 'plain';
+    localStorage.setItem(`formatMode_${personaId}`, formatMode);
+    updateToggleUI();
+  });
+}
+
 // 초기화
 async function init() {
   if (!personaId) return location.href = '/';
+
+  // 로그인 확인
+  await window.supabaseAuth.requireLogin();
 
   try {
     const res = await fetch('/api/personas');
@@ -159,6 +191,9 @@ async function init() {
     document.getElementById('header-bar').style.backgroundColor = persona.color;
     document.getElementById('send-btn').style.background = persona.color;
     document.title = `${persona.icon} ${persona.name} — 사장님AI`;
+
+    updateToggleUI();
+    setupFormatToggle();
 
     addMessage('assistant', persona.greeting);
   } catch (err) {

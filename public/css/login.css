@@ -1,0 +1,255 @@
+/* 로그인 페이지 스타일 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #F9FAFB;
+  --white: #fff;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-400: #9CA3AF;
+  --gray-600: #6B7280;
+  --gray-800: #1F2937;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --kakao-yellow: #FEE500;
+  --kakao-text: #191919;
+}
+
+body {
+  font-family: -apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+  background: var(--bg);
+  color: var(--gray-800);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-container {
+  width: 100%;
+  max-width: 420px;
+  padding: 1.5rem;
+}
+
+.login-card {
+  background: var(--white);
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.logo {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.login-card h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-bottom: 0.3rem;
+}
+
+.subtitle {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+/* 소셜 로그인 버튼 */
+.social-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.btn-kakao,
+.btn-google {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-kakao {
+  background: var(--kakao-yellow);
+  color: var(--kakao-text);
+}
+
+.btn-google {
+  background: var(--white);
+  color: var(--gray-800);
+  border: 1.5px solid var(--gray-200);
+}
+
+.btn-kakao:active,
+.btn-google:active {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+.btn-kakao:hover {
+  box-shadow: 0 4px 16px rgba(254, 229, 0, 0.4);
+}
+
+.btn-google:hover {
+  background: var(--gray-100);
+}
+
+.icon-kakao {
+  font-size: 1.2rem;
+}
+
+/* 구분선 */
+.divider {
+  position: relative;
+  margin: 1.5rem 0;
+  color: var(--gray-400);
+  font-size: 0.85rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 20px);
+  height: 1px;
+  background: var(--gray-200);
+}
+
+.divider::before { left: 0; }
+.divider::after { right: 0; }
+
+/* 이메일 폼 */
+.email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  text-align: left;
+}
+
+input[type="email"],
+input[type="password"] {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus {
+  border-color: #4F46E5;
+}
+
+input[type="email"]::placeholder,
+input[type="password"]::placeholder {
+  color: var(--gray-400);
+}
+
+.btn-submit {
+  width: 100%;
+  height: 48px;
+  background: #4F46E5;
+  color: var(--white);
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-submit:active {
+  transform: scale(0.98);
+}
+
+.btn-submit:hover {
+  background: #4338ca;
+}
+
+.btn-submit:disabled {
+  background: var(--gray-400);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 회원가입 링크 */
+.signup-link {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+}
+
+.signup-link a {
+  color: #4F46E5;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-link a:hover {
+  text-decoration: underline;
+}
+
+/* 에러 메시지 */
+.error-message {
+  display: none;
+  background: #FEF2F2;
+  color: #991B1B;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.error-message.show {
+  display: block;
+}
+
+/* 스크린 리더용 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 로딩 상태 */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 데스크탑 */
+@media (min-width: 640px) {
+  .login-card {
+    padding: 3rem 2.5rem;
+  }
+}

@@ -12,6 +12,15 @@
     <header class="chat-header" id="header-bar">
       <button class="back" id="back-btn" aria-label="뒤로 가기">←</button>
       <span id="persona-name">로딩 중...</span>
+      <div class="header-actions">
+        <label class="format-toggle" title="답변 형식 전환">
+          <input type="checkbox" id="format-toggle" checked>
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="toggle-label" id="toggle-label">📝 구조화</span>
+        </label>
+      </div>
     </header>
 
     <!-- 채팅 영역 -->
@@ -30,6 +39,8 @@
     </footer>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/auth.js"></script>
   <script src="/js/chat.js"></script>
 </body>
 </html>
