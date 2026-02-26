@@ -1,4 +1,5 @@
 import express from 'express';
+import OpenAI from 'openai';
 import { getPersona, getAllPersonas } from './personas/index.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -11,14 +12,15 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const API_KEY = process.env.GLM_API_KEY || process.env.ZAI_API_KEY;
-const API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
+const API_BASE = 'https://api.z.ai/api/coding/paas/v4';
 
 if (!API_KEY) console.error('⚠️ GLM_API_KEY not set!');
+
+const glm = new OpenAI({ baseURL: API_BASE, apiKey: API_KEY });
 
 // 인메모리 세션 (MVP)
 const sessions = new Map();
 const SESSION_TTL = 30 * 60 * 1000;
-
 setInterval(() => {
   const now = Date.now();
   for (const [id, s] of sessions) {
@@ -26,17 +28,13 @@ setInterval(() => {
   }
 }, 60_000);
 
-// 페르소나 목록 API
-app.get('/api/personas', (req, res) => {
-  res.json(getAllPersonas());
-});
+app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 
-// 채팅 API (SSE 스트리밍) — fetch 직접 호출
+// 채팅 API (SSE)
 app.post('/api/chat', async (req, res) => {
   const { persona: personaId, messages, sessionId } = req.body;
-
-  if (!personaId || !Array.isArray(messages) || messages.length === 0 || !sessionId) {
-    return res.status(400).json({ error: '필수 필드가 누락되었습니다.' });
+  if (!personaId || !Array.isArray(messages) || !messages.length || !sessionId) {
+    return res.status(400).json({ error: '필수 필드 누락' });
   }
 
   const persona = getPersona(personaId);
@@ -48,10 +46,7 @@ app.post('/api/chat', async (req, res) => {
     sessions.set(sessionId, session);
   }
   session.lastActive = Date.now();
-
-  const userMsg = messages[messages.length - 1];
-  session.messages.push(userMsg);
-  const recentMessages = session.messages.slice(-40);
+  session.messages.push(messages[messages.length - 1]);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -59,61 +54,27 @@ app.post('/api/chat', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'glm-4.7-flash',
-        messages: [
-          { role: 'system', content: persona.systemPrompt },
-          ...recentMessages,
-        ],
-        stream: true,
-        max_tokens: 4096,
-        enable_thinking: false,  // thinking 모드 비활성화
-      }),
+    // OpenAI SDK의 _client.post를 직접 사용하여 enable_thinking 전달
+    const response = await glm.chat.completions.create({
+      model: 'glm-4.7-flash',
+      messages: [
+        { role: 'system', content: persona.systemPrompt },
+        ...session.messages.slice(-40),
+      ],
+      stream: true,
+      max_tokens: 4096,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('GLM API error:', response.status, errText);
-      res.write(`data: ${JSON.stringify({ type: 'error', message: `API ${response.status}: ${errText.slice(0,100)}` })}\n\n`);
-      return res.end();
-    }
-
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
     let fullResponse = '';
-    let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === '[DONE]') continue;
-        
-        try {
-          const data = JSON.parse(jsonStr);
-          const delta = data.choices?.[0]?.delta || {};
-          const text = delta.content || delta.reasoning_content || '';
-          
-          if (text) {
-            fullResponse += text;
-            res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
-          }
-        } catch {}
+    for await (const chunk of response) {
+      const delta = chunk.choices[0]?.delta || {};
+      // content 우선, reasoning_content 폴백 (GLM thinking 모델 대응)
+      const text = delta.content || delta.reasoning_content || '';
+      if (text) {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
       }
     }
 
@@ -121,22 +82,18 @@ app.post('/api/chat', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
   } catch (err) {
-    console.error('API error:', err);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: `연결 실패: ${err.message}` })}\n\n`);
+    console.error('Chat error:', err.message);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: err.message?.slice(0, 100) || '서비스 오류' })}\n\n`);
     res.end();
   }
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
-
-// SPA 폴백
 app.get('/chat', (req, res) => res.sendFile(path.join(__dirname, 'public', 'chat.html')));
 
-// 로컬 실행용
 if (process.env.NODE_ENV !== 'production' || process.env.PORT) {
   const PORT = process.env.PORT || 3100;
-  app.listen(PORT, () => console.log(`🏪 사장님AI 서버 시작: http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`🏪 사장님AI: http://localhost:${PORT}`));
 }
 
-// Vercel 서버리스 export
 export default app;
