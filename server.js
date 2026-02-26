@@ -95,10 +95,24 @@ app.post('/api/chat', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
   } catch (err) {
-    console.error('Chat error:', err.message);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: err.message?.slice(0, 100) || '서비스 오류' })}\n\n`);
+    console.error('Chat error:', err.message, err.status);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: getErrorMessage(err) })}\n\n`);
     res.end();
   }
+
+// 에러 메시지 매핑
+function getErrorMessage(err) {
+  if (err.status === 429) {
+    return '⏸️ 잠시 후 다시 시도해주세요. (요청이 너무 많아요)';
+  }
+  if (err.status === 401) {
+    return '🔑 인증 오류가 발생했습니다.';
+  }
+  if (err.status && err.status >= 500) {
+    return '🤖 서버 오류입니다. 잠시 후 다시 시도해주세요.';
+  }
+  return '⚠️ 연결에 실패했습니다.';
+}
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
