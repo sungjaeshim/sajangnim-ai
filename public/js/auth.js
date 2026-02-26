@@ -32,10 +32,6 @@ async function initSupabase() {
       }
     });
 
-    // 현재 세션 확인
-    const { data: { session } } = await supabase.auth.getSession();
-    user = session?.user || null;
-
     return supabase;
   } catch (err) {
     console.error('Supabase 초기화 실패:', err);
