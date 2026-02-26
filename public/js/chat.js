@@ -6,12 +6,8 @@ const sessionId = crypto.randomUUID();
 let isStreaming = false;
 let currentColor = '#4F46E5';
 let formatMode = localStorage.getItem(`formatMode_${personaId}`) !== 'plain' ? 'structured' : 'plain';
-let currentPersonaName = '사장님';
-let chatMessages = [];
-
-// 전역 노출 (내보내기용)
-window.chatMessages = chatMessages;
-window.currentPersonaName = currentPersonaName;
+let currentConversationId = null;
+let conversations = [];
 
 // 마크다운 → HTML 변환 (기본)
 function formatMarkdown(text) {
@@ -40,10 +36,6 @@ function addMessage(role, content) {
   div.innerHTML = formatMarkdown(content);
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
-
-  // 메시지 배열에 저장 (내보내기용)
-  chatMessages.push({ role, content });
-
   return div;
 }
 
@@ -68,6 +60,98 @@ input.addEventListener('input', () => {
   input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 });
 
+// 사이드바 토글
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('open');
+}
+
+// 대화 목록 로드
+async function loadConversations() {
+  try {
+    conversations = await window.db.getConversations();
+    renderConversations();
+  } catch (err) {
+    console.error('Failed to load conversations:', err);
+  }
+}
+
+// 대화 목록 렌더링
+function renderConversations() {
+  const container = document.getElementById('conversation-list');
+  if (conversations.length === 0) {
+    container.innerHTML = '<div class="conversation-empty">대화 기록이 없습니다</div>';
+    return;
+  }
+
+  container.innerHTML = conversations.map(conv => {
+    const date = new Date(conv.updated_at);
+    const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    const isActive = conv.id === currentConversationId ? 'active' : '';
+
+    return `
+      <div class="conversation-item ${isActive}" data-id="${conv.id}" data-persona="${conv.persona_id}">
+        <div class="conversation-title">${conv.title}</div>
+        <div class="conversation-meta">${dateStr}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// 대화 클릭 핸들러
+async function handleConversationClick(convId, convPersonaId) {
+  // 현재 페르소나와 다르면 페이지 이동
+  if (convPersonaId !== personaId) {
+    location.href = `/chat?persona=${convPersonaId}`;
+    return;
+  }
+
+  currentConversationId = convId;
+  clearMessages();
+
+  try {
+    const data = await window.db.getMessages(convId);
+    data.messages.forEach(msg => {
+      addMessage(msg.role, msg.content);
+    });
+    renderConversations();
+    closeSidebar();
+  } catch (err) {
+    console.error('Failed to load conversation:', err);
+    addMessage('assistant', '⚠️ 대화를 불러오는 데 실패했습니다.');
+  }
+}
+
+// 새 대화 시작
+function startNewConversation() {
+  currentConversationId = null;
+  clearMessages();
+  renderConversations();
+  closeSidebar();
+  addMessage('assistant', window.currentPersona?.greeting || '안녕하세요! 새 대화를 시작합니다.');
+}
+
+function clearMessages() {
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '';
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+// 날짜 포맷팅
+function formatDate(isoString) {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return '오늘';
+  if (diffDays === 1) return '어제';
+  if (diffDays < 7) return `${diffDays}일 전`;
+  return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
 async function sendMessage() {
   const text = input.value.trim();
   if (!text || isStreaming) return;
@@ -82,6 +166,13 @@ async function sendMessage() {
   addTypingIndicator();
 
   try {
+    // 대화 ID가 없으면 새 대화 생성
+    if (!currentConversationId) {
+      const { id } = await window.db.createConversation(personaId, text);
+      currentConversationId = id;
+      await loadConversations();
+    }
+
     // JWT 토큰 가져오기
     const token = await window.supabaseAuth.getToken();
 
@@ -98,6 +189,7 @@ async function sendMessage() {
         sessionId,
         messages: [{ role: 'user', content: text }],
         formatMode,
+        conversationId: currentConversationId,
       }),
     });
 
@@ -132,6 +224,12 @@ async function sendMessage() {
         } catch {}
       }
     }
+
+    // 대화 제목 업데이트 (첫 응답이면)
+    const convIndex = conversations.findIndex(c => c.id === currentConversationId);
+    if (convIndex >= 0 && conversations[convIndex].title === text.slice(0, 100)) {
+      await loadConversations();
+    }
   } catch (err) {
     removeTypingIndicator();
     const errorDiv = addMessage('assistant', '⚠️ 네트워크 오류가 발생했습니다.');
@@ -147,39 +245,34 @@ async function sendMessage() {
 
 // 이벤트 리스너 (event delegation)
 document.addEventListener('click', (e) => {
+  // 전송 버튼
   if (e.target.id === 'send-btn' || e.target.closest('#send-btn')) sendMessage();
+
+  // 뒤로 가기 버튼
   if (e.target.id === 'back-btn' || e.target.closest('#back-btn')) location.href = '/';
+
+  // 사이드바 토글
+  if (e.target.closest('#sidebar-toggle')) toggleSidebar();
+
+  // 사이드바 닫기
+  if (e.target.id === 'sidebar-close' || e.target.closest('#sidebar-close')) closeSidebar();
+
+  // 새 대화 버튼
+  if (e.target.id === 'new-chat-btn' || e.target.closest('#new-chat-btn')) startNewConversation();
+
+  // 대화 아이템 클릭
+  const convItem = e.target.closest('.conversation-item');
+  if (convItem) {
+    const convId = convItem.getAttribute('data-id');
+    const convPersonaId = convItem.getAttribute('data-persona');
+    handleConversationClick(convId, convPersonaId);
+  }
+
   // 다시 시도 버튼
   if (e.target.classList.contains('retry-btn')) {
     const retryText = e.target.getAttribute('data-text');
     input.value = retryText;
     sendMessage();
-  }
-  // 내보내기 버튼 - 메뉴 토글
-  if (e.target.id === 'export-btn' || e.target.closest('#export-btn')) {
-    const menu = document.getElementById('export-menu');
-    const isVisible = menu.style.display === 'block';
-    menu.style.display = isVisible ? 'none' : 'block';
-    e.stopPropagation();
-  }
-  // 내보내기 옵션 (TXT/PDF)
-  if (e.target.classList.contains('export-option')) {
-    const format = e.target.getAttribute('data-format');
-    const messages = window.exportChat.getMessages();
-    const personaName = window.exportChat.getPersonaName();
-
-    if (format === 'txt') {
-      window.exportChat.toTXT(messages, personaName);
-    } else if (format === 'pdf') {
-      window.exportChat.toPDF(messages, personaName);
-    }
-
-    document.getElementById('export-menu').style.display = 'none';
-    e.stopPropagation();
-  }
-  // 메뉴 외부 클릭 시 닫기
-  if (e.target.closest('.export-wrapper') === null) {
-    document.getElementById('export-menu').style.display = 'none';
   }
 });
 
@@ -222,9 +315,8 @@ async function init() {
     const persona = personas.find(p => p.id === personaId);
     if (!persona) return location.href = '/';
 
+    window.currentPersona = persona;
     currentColor = persona.color;
-    currentPersonaName = persona.name;
-    window.currentPersonaName = persona.name;
     document.getElementById('persona-name').textContent = `${persona.icon} ${persona.name}`;
     document.getElementById('header-bar').style.backgroundColor = persona.color;
     document.getElementById('send-btn').style.background = persona.color;
@@ -234,6 +326,9 @@ async function init() {
     setupFormatToggle();
 
     addMessage('assistant', persona.greeting);
+
+    // 대화 목록 로드
+    await loadConversations();
   } catch (err) {
     addMessage('assistant', '⚠️ 서버 연결 실패. 새로고침 해주세요.');
   }

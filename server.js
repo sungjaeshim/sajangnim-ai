@@ -97,9 +97,155 @@ async function requireAuth(req, res, next) {
   next();
 }
 
+// 대화 목록 조회
+app.get('/api/conversations', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .select('id, title, persona_id, updated_at')
+      .eq('user_id', req.user.id)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('Get conversations error:', err);
+    res.status(500).json({ error: '대화 목록 조회 실패' });
+  }
+});
+
+// 새 대화 생성
+app.post('/api/conversations', requireAuth, async (req, res) => {
+  const { personaId, title } = req.body;
+
+  if (!personaId || !title) {
+    return res.status(400).json({ error: '필수 필드 누락' });
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .insert({
+        user_id: req.user.id,
+        persona_id: personaId,
+        title: title.slice(0, 100), // 최대 100자 제한
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    res.json({ id: data.id });
+  } catch (err) {
+    console.error('Create conversation error:', err);
+    res.status(500).json({ error: '대화 생성 실패' });
+  }
+});
+
+// 메시지 저장
+app.post('/api/conversations/:id/messages', requireAuth, async (req, res) => {
+  const conversationId = req.params.id;
+  const { role, content, modelUsed } = req.body;
+
+  if (!role || !content) {
+    return res.status(400).json({ error: '필수 필드 누락' });
+  }
+
+  try {
+    // 대화 소유권 확인
+    const { data: conv } = await supabaseAdmin
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (!conv) {
+      return res.status(403).json({ error: '접근 권한 없음' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        role,
+        content: content.slice(0, 10000),
+        model_used: modelUsed || 'glm-4.7',
+      });
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Save message error:', err);
+    res.status(500).json({ error: '메시지 저장 실패' });
+  }
+});
+
+// 메시지 저장 헬퍼 (백그라운드)
+async function saveMessages(conversationId, userMsg, assistantMsg, modelUsed) {
+  try {
+    // 대화 소유권 확인 후 메시지 저장
+    const { data: conv } = await supabaseAdmin
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .single();
+
+    if (!conv) return;
+
+    await supabaseAdmin.from('messages').insert([
+      {
+        conversation_id: conversationId,
+        role: userMsg.role,
+        content: userMsg.content,
+        model_used: null, // user 메시지는 model 없음
+      },
+      {
+        conversation_id: conversationId,
+        role: assistantMsg.role,
+        content: assistantMsg.content,
+        model_used: modelUsed,
+      },
+    ]);
+  } catch (err) {
+    console.error('Save messages error:', err);
+  }
+}
+
+// 대화 메시지 조회
+app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
+  const conversationId = req.params.id;
+
+  try {
+    // 대화 소유권 확인
+    const { data: conv } = await supabaseAdmin
+      .from('conversations')
+      .select('id, persona_id')
+      .eq('id', conversationId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (!conv) {
+      return res.status(403).json({ error: '접근 권한 없음' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('messages')
+      .select('role, content, model_used, created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    res.json({ personaId: conv.persona_id, messages: data || [] });
+  } catch (err) {
+    console.error('Get messages error:', err);
+    res.status(500).json({ error: '메시지 조회 실패' });
+  }
+});
+
 // 채팅 API (SSE)
 app.post('/api/chat', requireAuth, async (req, res) => {
-  const { persona: personaId, messages, sessionId, formatMode } = req.body;
+  const { persona: personaId, messages, sessionId, formatMode, conversationId } = req.body;
 
   // Rate limiting
   const ip = req.ip || req.connection.remoteAddress;
@@ -181,6 +327,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
 
     session.messages.push({ role: 'assistant', content: fullResponse });
+
+    // 대화 ID가 있으면 메시지 저장 (백그라운드)
+    if (conversationId) {
+      saveMessages(conversationId, messages[messages.length - 1], { role: 'assistant', content: fullResponse }, modelConfig.model)
+        .catch(err => console.error('Message save error:', err));
+    }
+
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
   } catch (err) {
