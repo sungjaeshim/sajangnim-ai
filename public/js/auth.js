@@ -312,7 +312,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initLoginPage();
   } else if (location.pathname.includes('index.html') || location.pathname === '/') {
     await initMainPage();
-    await requireLogin();
+    const loggedIn = await requireLogin();
+    if (loggedIn && typeof window.loadPersonas === 'function') {
+      window.loadPersonas();
+    }
   } else if (location.pathname.includes('chat.html')) {
     await requireLogin();
   }
