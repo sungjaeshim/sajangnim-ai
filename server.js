@@ -29,12 +29,13 @@ setInterval(() => {
 }, 60_000);
 
 // 페르소나별 모델 맵
+// glm-4.7은 thinking 모델(delta.reasoning_content) → 채팅엔 glm-4.7-flash 사용
 const MODEL_MAP = {
-  dojun:  'glm-4.7',
-  jia:    'glm-4.7',
-  eric:   'glm-4.7-flash',  // 분석 → 빠른 flash
-  hana:   'glm-4.7',
-  minjun: 'glm-4.7-flash',  // 분석 → 빠른 flash
+  dojun:  'glm-4.7-flash',
+  jia:    'glm-4.7-flash',
+  eric:   'glm-4.7-flash',
+  hana:   'glm-4.7-flash',
+  minjun: 'glm-4.7-flash',
 };
 
 // 페르소나 목록 API
@@ -77,6 +78,9 @@ app.post('/api/chat', async (req, res) => {
       ],
       stream: true,
       max_tokens: 4096,
+      // ZAI GLM thinking 모드 비활성화 (reasoning_content 대신 content로 응답)
+      // @ts-ignore
+      enable_thinking: false,
     });
 
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
@@ -84,7 +88,9 @@ app.post('/api/chat', async (req, res) => {
     let fullResponse = '';
 
     for await (const chunk of stream) {
-      const text = chunk.choices[0]?.delta?.content || '';
+      const delta = chunk.choices[0]?.delta || {};
+      // glm-4.7 thinking 모델은 reasoning_content로 옴, flash는 content로 옴
+      const text = delta.content || delta.reasoning_content || '';
       if (text) {
         fullResponse += text;
         res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
