@@ -7,6 +7,23 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Rate limiting (in-memory)
+const rateLimitMap = new Map();
+const RATE_LIMIT = 20; // 분당 20요청
+const RATE_WINDOW = 60 * 1000;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip) || { count: 0, resetAt: now + RATE_WINDOW };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + RATE_WINDOW;
+  }
+  entry.count++;
+  rateLimitMap.set(ip, entry);
+  return entry.count <= RATE_LIMIT;
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -37,7 +54,29 @@ app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 // 채팅 API (SSE)
 app.post('/api/chat', async (req, res) => {
   const { persona: personaId, messages, sessionId } = req.body;
-  if (!personaId || !Array.isArray(messages) || !messages.length || !sessionId) {
+
+  // Rate limiting
+  const ip = req.ip || req.connection.remoteAddress;
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  // Input validation
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages must be a non-empty array' });
+  }
+  if (messages.length > 50) {
+    return res.status(400).json({ error: 'messages array too long (max 50)' });
+  }
+  for (const msg of messages) {
+    if (!msg.role || !msg.content || typeof msg.content !== 'string') {
+      return res.status(400).json({ error: 'invalid message format' });
+    }
+    if (msg.content.length > 10000) {
+      return res.status(400).json({ error: 'message content too long (max 10000 chars)' });
+    }
+  }
+  if (!personaId || !sessionId) {
     return res.status(400).json({ error: '필수 필드 누락' });
   }
 
