@@ -77,6 +77,46 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// 대화 요약 생성 (GLM fast)
+async function generateSummary(messages) {
+  try {
+    const recent = messages.slice(-10);
+    const dialogue = recent.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n');
+    const res = await glm.chat.completions.create({
+      model: 'glm-4-flash',
+      messages: [
+        {
+          role: 'system',
+          content: '다음 대화를 3줄 이내로 요약하라. 사용자의 업종, 핵심 문제, 논의된 해결책 위주로. 한국어로.'
+        },
+        { role: 'user', content: dialogue }
+      ],
+      max_tokens: 200,
+      extra_body: { enable_thinking: false }
+    });
+    return res.choices[0]?.message?.content || null;
+  } catch (e) {
+    console.error('[summary] 생성 실패:', e.message);
+    return null;
+  }
+}
+
+// 선택적 JWT 검증 (비로그인도 허용)
+async function optionalAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token && supabaseAdmin) {
+    try {
+      const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+      req.user = user || null;
+    } catch (e) {
+      req.user = null;
+    }
+  } else {
+    req.user = null;
+  }
+  next();
+}
+
 // JWT 검증 미들웨어
 async function requireAuth(req, res, next) {
   if (!supabaseAdmin) {
@@ -244,7 +284,7 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
 });
 
 // 채팅 API (SSE)
-app.post('/api/chat', requireAuth, async (req, res) => {
+app.post('/api/chat', optionalAuth, async (req, res) => {
   const { persona: personaId, messages, sessionId, formatMode, conversationId } = req.body;
 
   // Rate limiting
@@ -275,8 +315,30 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const persona = getPersona(personaId);
   if (!persona) return res.status(400).json({ error: 'Invalid persona' });
 
+  // 이전 대화 요약 컨텍스트 주입 (로그인 사용자만)
+  let narrativeContext = '';
+  if (req.user && supabaseAdmin) {
+    try {
+      const { data: prevConvs } = await supabaseAdmin
+        .from('conversations')
+        .select('summary, persona_id, updated_at')
+        .eq('user_id', req.user.id)
+        .eq('persona_id', personaId)
+        .not('summary', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(3);
+
+      if (prevConvs && prevConvs.length > 0) {
+        const summaries = prevConvs.map((c, i) => `[이전 대화 ${i+1}] ${c.summary}`).join('\n');
+        narrativeContext = `\n\n## 이 사용자와의 이전 대화 요약\n${summaries}\n\n이 맥락을 참고하여 사용자의 상황을 이미 파악하고 있는 것처럼 자연스럽게 대화하라.`;
+      }
+    } catch (e) {
+      console.error('[narrative] 컨텍스트 로드 실패:', e.message);
+    }
+  }
+
   // 포맷 모드에 따른 시스템 프롬프트 수정
-  let systemPrompt = persona.systemPrompt;
+  let systemPrompt = persona.systemPrompt + narrativeContext;
   if (formatMode === 'plain') {
     systemPrompt += '\n\n## 응답 형식 규칙\n절대로 마크다운, 이모지, 굵은 글씨(**텍스트**), 목록(-, *, •, 숫자), 헤더(#)를 사용하지 마세요. 자연스러운 한국어 줄글(산문) 형식으로만 답변하세요.';
   }
@@ -332,6 +394,38 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (conversationId) {
       saveMessages(conversationId, messages[messages.length - 1], { role: 'assistant', content: fullResponse }, modelConfig.model)
         .catch(err => console.error('Message save error:', err));
+    }
+
+    // turn_count 증가 및 5턴마다 요약 생성 (로그인 사용자 + Supabase 연동 시)
+    if (conversationId && req.user && supabaseAdmin) {
+      (async () => {
+        try {
+          const { data: conv } = await supabaseAdmin
+            .from('conversations')
+            .select('turn_count')
+            .eq('id', conversationId)
+            .single();
+
+          const newTurnCount = (conv?.turn_count || 0) + 1;
+
+          if (newTurnCount % 5 === 0) {
+            const allMessages = [...session.messages];
+            const summary = await generateSummary(allMessages);
+            await supabaseAdmin
+              .from('conversations')
+              .update({ summary, turn_count: newTurnCount, updated_at: new Date().toISOString() })
+              .eq('id', conversationId);
+            console.log(`[narrative] 요약 저장 완료 (turn ${newTurnCount}):`, summary?.slice(0, 50));
+          } else {
+            await supabaseAdmin
+              .from('conversations')
+              .update({ turn_count: newTurnCount, updated_at: new Date().toISOString() })
+              .eq('id', conversationId);
+          }
+        } catch (e) {
+          console.error('[turn_count] 업데이트 실패:', e.message);
+        }
+      })();
     }
 
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
