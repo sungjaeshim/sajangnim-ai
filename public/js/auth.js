@@ -1,6 +1,7 @@
 // Supabase Auth 모듈
 let supabase = null;
 let user = null;
+let _authReady = false; // true after first successful login/session restore
 
 // Supabase 초기화
 async function initSupabase() {
@@ -20,16 +21,17 @@ async function initSupabase() {
 
     // 세션 변경 감지
     supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[auth] onAuthStateChange:', event, !!session);
       user = session?.user || null;
 
-      if (event === 'SIGNED_IN') {
-        // 이미 인증 페이지에 있지 않다면 홈으로 이동
-        if (!location.pathname.includes('login')) {
-          // 현재 페이지 유지
-        }
-      } else if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        _authReady = true;
+      } else if (event === 'SIGNED_OUT' && _authReady) {
+        // Only redirect on SIGNED_OUT if we previously had a valid session.
+        // This prevents redirect during OAuth callback before setSession() runs.
         location.href = '/login.html';
       }
+      // INITIAL_SESSION with null session → ignore (requireLogin handles redirect)
     });
 
     return supabase;
@@ -54,6 +56,7 @@ async function requireLogin() {
       if (sb && accessToken) {
         const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (data?.session) {
+          _authReady = true;
           history.replaceState(null, '', location.pathname);
           user = data.session.user;
           return true;
@@ -96,6 +99,7 @@ async function requireLogin() {
     return false;
   }
 
+  _authReady = true;
   user = session.user;
   return true;
 }
