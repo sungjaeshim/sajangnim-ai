@@ -24,7 +24,7 @@ async function initSupabase() {
 
       if (event === 'SIGNED_IN') {
         // 이미 인증 페이지에 있지 않다면 홈으로 이동
-        if (!location.pathname.includes('login.html')) {
+        if (!location.pathname.includes('login')) {
           // 현재 페이지 유지
         }
       } else if (event === 'SIGNED_OUT') {
@@ -47,14 +47,14 @@ async function requireLogin() {
   const SESSION_KEY = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
   const cached = localStorage.getItem(SESSION_KEY);
   if (!cached) {
-    location.href = `/login.html?returnUrl=${returnUrl}`;
+    location.href = `/login?returnUrl=${returnUrl}`;
     return false;
   }
 
   // ② localStorage에 세션 있으면 Supabase로 검증
   const sb = await initSupabase();
   if (!sb) {
-    location.href = `/login.html?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패')}`;
+    location.href = `/login?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패')}`;
     return false;
   }
 
@@ -71,7 +71,7 @@ async function requireLogin() {
   }
 
   if (!session) {
-    location.href = `/login.html?returnUrl=${returnUrl}`;
+    location.href = `/login?returnUrl=${returnUrl}`;
     return false;
   }
 
@@ -203,10 +203,10 @@ async function signOut() {
 
   try {
     await sb.auth.signOut();
-    location.href = '/login.html';
+    location.href = '/login';
   } catch (err) {
     console.error('로그아웃 실패:', err);
-    location.href = '/login.html';
+    location.href = '/login';
   }
 }
 
@@ -317,16 +317,25 @@ async function initMainPage() {
 
 // 페이지별 초기화
 document.addEventListener('DOMContentLoaded', async () => {
-  if (location.pathname.includes('login.html')) {
-    // initSupabase() 호출 없이 바로 이벤트 리스너 세팅 (Supabase 행 방지)
-    await initLoginPage();
-  } else if (location.pathname.includes('index.html') || location.pathname === '/') {
+  const path = location.pathname;
+  console.log('[auth] path:', path, '| supabase CDN:', typeof window.supabase);
+
+  if (path.includes('login')) {
+    try {
+      await initLoginPage();
+      console.log('[auth] initLoginPage 완료');
+    } catch (err) {
+      console.error('[auth] initLoginPage 실패:', err);
+      const form = document.getElementById('email-form');
+      if (form) form.addEventListener('submit', e => e.preventDefault());
+    }
+  } else if (path.includes('index.html') || path === '/') {
     await initMainPage();
     const loggedIn = await requireLogin();
     if (loggedIn && typeof window.loadPersonas === 'function') {
       window.loadPersonas();
     }
-  } else if (location.pathname.includes('chat.html')) {
+  } else if (path.includes('chat')) {
     await requireLogin();
   }
 });
