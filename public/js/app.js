@@ -12,6 +12,8 @@ async function loadPersonas() {
       const card = document.createElement('a');
       card.className = 'persona-card';
       card.href = `/chat?persona=${persona.id}`;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', `${persona.name} (${persona.role}): ${persona.description}`);
 
       card.innerHTML = `
         <div class="color-bar" style="background:${persona.color}"></div>
@@ -24,7 +26,16 @@ async function loadPersonas() {
       grid.appendChild(card);
     });
   } catch (err) {
-    grid.innerHTML = '<p style="color:#ef4444;text-align:center;grid-column:1/-1">서버 연결 실패. 잠시 후 다시 시도해주세요.</p>';
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:2rem;">
+        <p style="color:#ef4444;margin-bottom:1rem;">서버 연결 실패</p>
+        <button id="retry-btn" aria-label="다시 시도">🔄 다시 시도</button>
+      </div>
+    `;
+    // 다시 시도 버튼 이벤트
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'retry-btn') loadPersonas();
+    });
   }
 }
 

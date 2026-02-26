@@ -7,27 +7,28 @@
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="chat-body">
-  <div class="chat-page">
+  <main class="chat-page">
     <!-- 헤더 -->
-    <div class="chat-header" id="header-bar">
-      <button class="back" id="back-btn">←</button>
+    <header class="chat-header" id="header-bar">
+      <button class="back" id="back-btn" aria-label="뒤로 가기">←</button>
       <span id="persona-name">로딩 중...</span>
-    </div>
+    </header>
 
     <!-- 채팅 영역 -->
-    <div id="chat-messages" class="chat-messages"></div>
+    <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="채팅 메시지"></div>
 
     <!-- 입력 영역 -->
-    <div class="chat-input-area">
+    <footer class="chat-input-area">
       <textarea
         id="chat-input"
         placeholder="사장님 상황을 편하게 말씀해주세요..."
         rows="1"
         maxlength="2000"
+        aria-label="메시지 입력"
       ></textarea>
-      <button id="send-btn">전송</button>
-    </div>
-  </div>
+      <button id="send-btn" aria-label="메시지 전송">전송</button>
+    </footer>
+  </main>
 
   <script src="/js/chat.js"></script>
 </body>

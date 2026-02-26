@@ -114,7 +114,10 @@ async function sendMessage() {
     }
   } catch (err) {
     removeTypingIndicator();
-    addMessage('assistant', '⚠️ 네트워크 오류. 잠시 후 다시 시도해주세요.');
+    const errorDiv = addMessage('assistant', '⚠️ 네트워크 오류가 발생했습니다.');
+    errorDiv.innerHTML += `
+      <button class="retry-btn" data-text="${text}" aria-label="메시지 다시 전송">🔄 다시 시도</button>
+    `;
   }
 
   isStreaming = false;
@@ -126,6 +129,12 @@ async function sendMessage() {
 document.addEventListener('click', (e) => {
   if (e.target.id === 'send-btn' || e.target.closest('#send-btn')) sendMessage();
   if (e.target.id === 'back-btn' || e.target.closest('#back-btn')) location.href = '/';
+  // 다시 시도 버튼
+  if (e.target.classList.contains('retry-btn')) {
+    const retryText = e.target.getAttribute('data-text');
+    input.value = retryText;
+    sendMessage();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
