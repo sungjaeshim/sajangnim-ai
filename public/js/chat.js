@@ -145,6 +145,32 @@ document.addEventListener('click', (e) => {
     input.value = retryText;
     sendMessage();
   }
+  // 내보내기 버튼 - 메뉴 토글
+  if (e.target.id === 'export-btn' || e.target.closest('#export-btn')) {
+    const menu = document.getElementById('export-menu');
+    const isVisible = menu.style.display === 'block';
+    menu.style.display = isVisible ? 'none' : 'block';
+    e.stopPropagation();
+  }
+  // 내보내기 옵션 (TXT/PDF)
+  if (e.target.classList.contains('export-option')) {
+    const format = e.target.getAttribute('data-format');
+    const messages = window.exportChat.getMessages();
+    const personaName = window.exportChat.getPersonaName();
+
+    if (format === 'txt') {
+      window.exportChat.toTXT(messages, personaName);
+    } else if (format === 'pdf') {
+      window.exportChat.toPDF(messages, personaName);
+    }
+
+    document.getElementById('export-menu').style.display = 'none';
+    e.stopPropagation();
+  }
+  // 메뉴 외부 클릭 시 닫기
+  if (e.target.closest('.export-wrapper') === null) {
+    document.getElementById('export-menu').style.display = 'none';
+  }
 });
 
 document.addEventListener('keydown', (e) => {
