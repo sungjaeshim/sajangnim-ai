@@ -40,6 +40,10 @@ function addMessage(role, content) {
   div.innerHTML = formatMarkdown(content);
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+
+  // 메시지 배열에 저장 (내보내기용)
+  chatMessages.push({ role, content });
+
   return div;
 }
 
@@ -219,6 +223,8 @@ async function init() {
     if (!persona) return location.href = '/';
 
     currentColor = persona.color;
+    currentPersonaName = persona.name;
+    window.currentPersonaName = persona.name;
     document.getElementById('persona-name').textContent = `${persona.icon} ${persona.name}`;
     document.getElementById('header-bar').style.backgroundColor = persona.color;
     document.getElementById('send-btn').style.background = persona.color;
