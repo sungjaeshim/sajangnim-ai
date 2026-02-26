@@ -59,6 +59,7 @@ async function requireLogin() {
         const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (data?.session) {
           _authReady = true;
+          window._authReady = true;
           history.replaceState(null, '', location.pathname);
           user = data.session.user;
           return true;
@@ -117,6 +118,7 @@ async function requireLogin() {
   }
 
   _authReady = true;
+  window._authReady = true;
   user = session.user;
   return true;
 }

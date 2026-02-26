@@ -23,6 +23,20 @@ var _doLoadPersonas = async function() {
         '<div class="card-role">' + persona.role + '</div>' +
         '<div class="card-desc">' + persona.description + '</div>';
 
+      // auth 완료 전 클릭 시 최대 3초 대기 후 이동
+      card.addEventListener('click', function(e) {
+        if (window._authReady) return; // 이미 완료 → 기본 href 동작
+        e.preventDefault();
+        var href = card.href;
+        var attempts = 0;
+        var check = setInterval(function() {
+          if (window._authReady || attempts++ > 30) {
+            clearInterval(check);
+            location.href = href;
+          }
+        }, 100);
+      });
+
       grid.appendChild(card);
     });
   } catch (err) {
