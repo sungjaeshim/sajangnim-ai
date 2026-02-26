@@ -1,17 +1,17 @@
 // Supabase Auth 모듈 — 재설계 by Opus
 // 핵심: detectSessionInUrl:true로 Supabase가 OAuth hash를 자동 처리
-let supabase = null;
-let _initPromise = null; // 레이스컨디션 방지
+let _sb = null;
+let _sbInitPromise = null; // 레이스컨디션 방지
 let user = null;
 
 const SESSION_KEY = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
 
 // Supabase 초기화 (싱글턴 + Promise 레이스 방지)
 async function initSupabase() {
-  if (supabase) return supabase;
-  if (_initPromise) return _initPromise; // 이미 초기화 중이면 같은 Promise 공유
-  _initPromise = _doInitSupabase();
-  return _initPromise;
+  if (_sb) return _sb;
+  if (_sbInitPromise) return _sbInitPromise; // 이미 초기화 중이면 같은 Promise 공유
+  _sbInitPromise = _doInitSupabase();
+  return _sbInitPromise;
 }
 
 async function _doInitSupabase() {
@@ -26,7 +26,7 @@ async function _doInitSupabase() {
     return r.json();
   });
 
-  supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+  _sb = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       detectSessionInUrl: true,   // Supabase가 #access_token 자동 처리
       persistSession: true,
@@ -34,7 +34,7 @@ async function _doInitSupabase() {
     }
   });
 
-  supabase.auth.onAuthStateChange((event, session) => {
+  _sb.auth.onAuthStateChange((event, session) => {
     console.log('[auth] state:', event, !!session);
     user = session?.user || null;
 
@@ -44,7 +44,7 @@ async function _doInitSupabase() {
     }
   });
 
-  return supabase;
+  return _sb;
 }
 
 // 인증 가드 — 세션 없으면 login.html redirect
@@ -78,8 +78,8 @@ function redirectToLogin() {
 
 // 현재 토큰 반환
 async function getToken() {
-  if (!supabase) return null;
-  const { data: { session } } = await supabase.auth.getSession();
+  if (!_sb) return null;
+  const { data: { session } } = await _sb.auth.getSession();
   return session?.access_token || null;
 }
 
@@ -136,7 +136,7 @@ async function signUpWithEmail(email, password) {
 
 // 로그아웃
 async function signOut() {
-  if (supabase) { try { await supabase.auth.signOut(); } catch (e) {} }
+  if (_sb) { try { await _sb.auth.signOut(); } catch (e) {} }
   localStorage.removeItem(SESSION_KEY);
   location.href = '/login.html';
 }
