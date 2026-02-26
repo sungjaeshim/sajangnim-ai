@@ -252,6 +252,12 @@ async function sendMessage() {
       }
     }
 
+    // 스트리밍 완료 후 chatMessages에 저장
+    if (fullText) {
+      if (!window.chatMessages) window.chatMessages = [];
+      window.chatMessages.push({ role: 'assistant', content: fullText });
+    }
+
     // 대화 제목 업데이트 (첫 응답이면)
     const convIndex = conversations.findIndex(c => c.id === currentConversationId);
     if (convIndex >= 0 && conversations[convIndex].title === text.slice(0, 100)) {
