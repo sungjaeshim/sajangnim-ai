@@ -17,7 +17,9 @@ async function initSupabase() {
       if (!r.ok) throw new Error('설정 로드 실패');
       return r.json();
     });
-    supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+    supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+      auth: { detectSessionInUrl: false, persistSession: true, storageKey: 'sb-xczegfsgxlnsvsmmrgaz-auth-token' }
+    });
 
     // 세션 변경 감지
     supabase.auth.onAuthStateChange((event, session) => {
@@ -67,16 +69,31 @@ async function requireLogin() {
     return false;
   }
 
-  // ① 빠른 체크: localStorage에 세션 없으면 즉시 redirect (네트워크 불필요)
+  // ① localStorage 빠른 체크
   const SESSION_KEY = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
   const cached = localStorage.getItem(SESSION_KEY);
-  if (!cached) {
+
+  // ② Supabase 초기화 (localStorage 없어도 시도 — OAuth 후 타이밍 이슈 대응)
+  const sb = await initSupabase();
+
+  if (!cached && sb) {
+    // localStorage 없지만 Supabase에서 직접 세션 확인 (setSession이 방금 완료됐을 수 있음)
+    try {
+      const { data } = await sb.auth.getSession();
+      if (data?.session) {
+        _authReady = true;
+        user = data.session.user;
+        return true;
+      }
+    } catch (e) {}
     location.href = `/login.html?returnUrl=${returnUrl}`;
     return false;
   }
 
-  // ② localStorage에 세션 있으면 Supabase로 검증
-  const sb = await initSupabase();
+  if (!cached) {
+    location.href = `/login.html?returnUrl=${returnUrl}`;
+    return false;
+  }
   if (!sb) {
     location.href = `/login.html?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패')}`;
     return false;
