@@ -319,18 +319,37 @@ app.post('/api/chat', optionalAuth, async (req, res) => {
   let narrativeContext = '';
   if (req.user && supabaseAdmin) {
     try {
-      const { data: prevConvs } = await supabaseAdmin
+      // 1) 현재 페르소나의 최근 대화 요약 1개
+      const { data: personaConvs } = await supabaseAdmin
         .from('conversations')
-        .select('summary, persona_id, updated_at')
+        .select('summary, updated_at')
         .eq('user_id', req.user.id)
         .eq('persona_id', personaId)
         .not('summary', 'is', null)
         .order('updated_at', { ascending: false })
-        .limit(3);
+        .limit(1);
 
-      if (prevConvs && prevConvs.length > 0) {
-        const summaries = prevConvs.map((c, i) => `[이전 대화 ${i+1}] ${c.summary}`).join('\n');
-        narrativeContext = `\n\n## 이 사용자와의 이전 대화 요약\n${summaries}\n\n이 맥락을 참고하여 사용자의 상황을 이미 파악하고 있는 것처럼 자연스럽게 대화하라.`;
+      // 2) 전체 페르소나 통합 최근 요약 1개 (다른 페르소나)
+      const { data: otherConvs } = await supabaseAdmin
+        .from('conversations')
+        .select('summary, persona_id, updated_at')
+        .eq('user_id', req.user.id)
+        .neq('persona_id', personaId)
+        .not('summary', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      const parts = [];
+
+      if (personaConvs && personaConvs.length > 0) {
+        parts.push(`[지난 대화 요약] ${personaConvs[0].summary}`);
+      }
+      if (otherConvs && otherConvs.length > 0) {
+        parts.push(`[다른 상담에서 파악한 사용자 정보] ${otherConvs[0].summary}`);
+      }
+
+      if (parts.length > 0) {
+        narrativeContext = `\n\n## 이 사용자 맥락\n${parts.join('\n')}\n\n위 맥락을 자연스럽게 참고하되, 굳이 언급하지 말고 이미 알고 있는 것처럼 대화하라.`;
       }
     } catch (e) {
       console.error('[narrative] 컨텍스트 로드 실패:', e.message);
