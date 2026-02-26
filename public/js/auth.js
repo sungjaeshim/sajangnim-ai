@@ -42,19 +42,37 @@ async function initSupabase() {
 // 인증 가드 - 로그인이 필요한 페이지
 async function requireLogin() {
   const returnUrl = encodeURIComponent(location.pathname + location.search);
+  const hash = location.hash || '';
+
+  // OAuth 콜백: URL hash에 access_token 있으면 Supabase가 먼저 처리
+  if (hash.includes('access_token')) {
+    const sb = await initSupabase();
+    if (sb) {
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) {
+          history.replaceState(null, '', location.pathname);
+          user = session.user;
+          return true;
+        }
+      } catch (e) {}
+    }
+    location.href = `/login.html?returnUrl=${returnUrl}`;
+    return false;
+  }
 
   // ① 빠른 체크: localStorage에 세션 없으면 즉시 redirect (네트워크 불필요)
   const SESSION_KEY = 'sb-xczegfsgxlnsvsmmrgaz-auth-token';
   const cached = localStorage.getItem(SESSION_KEY);
   if (!cached) {
-    location.href = `/login?returnUrl=${returnUrl}`;
+    location.href = `/login.html?returnUrl=${returnUrl}`;
     return false;
   }
 
   // ② localStorage에 세션 있으면 Supabase로 검증
   const sb = await initSupabase();
   if (!sb) {
-    location.href = `/login?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패')}`;
+    location.href = `/login.html?returnUrl=${returnUrl}&error=${encodeURIComponent('초기화 실패')}`;
     return false;
   }
 
@@ -71,7 +89,7 @@ async function requireLogin() {
   }
 
   if (!session) {
-    location.href = `/login?returnUrl=${returnUrl}`;
+    location.href = `/login.html?returnUrl=${returnUrl}`;
     return false;
   }
 
@@ -203,10 +221,10 @@ async function signOut() {
 
   try {
     await sb.auth.signOut();
-    location.href = '/login';
+    location.href = '/login.html';
   } catch (err) {
     console.error('로그아웃 실패:', err);
-    location.href = '/login';
+    location.href = '/login.html';
   }
 }
 
