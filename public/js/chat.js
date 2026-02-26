@@ -60,10 +60,14 @@ input.addEventListener('input', () => {
   input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 });
 
-// 사이드바 토글
+// 사이드바 토글 (모바일: open 클래스, 데스크톱: collapsed 클래스)
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
-  sidebar.classList.toggle('open');
+  if (window.innerWidth >= 768) {
+    sidebar.classList.toggle('collapsed');
+  } else {
+    sidebar.classList.toggle('open');
+  }
 }
 
 // 대화 목록 로드
@@ -75,6 +79,14 @@ async function loadConversations() {
     console.error('Failed to load conversations:', err);
   }
 }
+
+const PERSONA_INFO = {
+  dojun: { name: '도준', role: '전략가', icon: '🎯' },
+  eric:  { name: '에릭', role: 'CFO',    icon: '💰' },
+  hana:  { name: '하나', role: '브랜딩', icon: '✨' },
+  jia:   { name: '지아', role: '마케터', icon: '📱' },
+  minjun:{ name: '민준', role: '상권분석', icon: '📍' }
+};
 
 // 대화 목록 렌더링
 function renderConversations() {
@@ -88,9 +100,15 @@ function renderConversations() {
     const date = new Date(conv.updated_at);
     const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
     const isActive = conv.id === currentConversationId ? 'active' : '';
+    const pi = PERSONA_INFO[conv.persona_id] || { name: conv.persona_id, role: '', icon: '💬' };
+    const personaLabel = pi.role ? `${pi.name} · ${pi.role}` : pi.name;
 
     return `
       <div class="conversation-item ${isActive}" data-id="${conv.id}" data-persona="${conv.persona_id}">
+        <div class="conv-persona">
+          <span class="conv-persona-icon">${pi.icon}</span>
+          <span class="conv-persona-name">${personaLabel}</span>
+        </div>
         <div class="conversation-title">${conv.title}</div>
         <div class="conversation-meta">${dateStr}</div>
         <button class="conv-delete" data-id="${conv.id}" aria-label="삭제">🗑️</button>
@@ -299,7 +317,7 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.id === 'chat-input' && e.key === 'Enter' && !e.shiftKey) {
+  if (e.target.id === 'chat-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     sendMessage();
   }
