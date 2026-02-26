@@ -70,18 +70,16 @@ setInterval(() => {
 
 app.get('/api/personas', (req, res) => res.json(getAllPersonas()));
 
-// 3-Tier 모델 정의 (Vercel 호환 — Ollama 제외)
+// 2-Tier 모델 정의 (베타 기간: glm-4.7-flash 통일, Ollama 제외)
 const MODELS = {
-  'nemotron':     { provider: 'openrouter', model: 'nvidia/nemotron-3-nano-30b-a3b:free' },
-  'glm-flash':    { provider: 'zai',        model: 'glm-4.7-flash' },
-  'glm-standard': { provider: 'zai',        model: 'glm-4.7' },
+  'nemotron': { provider: 'openrouter', model: 'nvidia/nemotron-3-nano-30b-a3b:free' },
+  'glm-flash': { provider: 'zai',       model: 'glm-4.7-flash' },
 };
 
-// 폴백 체인 정의 (우선순위대로 시도)
+// 폴백 체인
 const FALLBACK_CHAINS = {
-  'nemotron':     ['nemotron', 'glm-flash', 'glm-standard'],
-  'glm-flash':    ['glm-flash', 'nemotron', 'glm-standard'],
-  'glm-standard': ['glm-standard', 'glm-flash', 'nemotron'],
+  'nemotron':  ['nemotron', 'glm-flash'],
+  'glm-flash': ['glm-flash', 'nemotron'],
 };
 
 // 심층 분석 키워드
@@ -95,11 +93,11 @@ function selectModel(userMessage, personaId) {
   const isDeep = DEEP_KEYWORDS.some(k => msg.includes(k));
 
   const personaDefaults = {
-    eric:   isDeep ? 'glm-standard' : 'glm-flash',  // CFO: 계산 → GLM-4.7 (정확)
-    dojun:  isDeep ? 'glm-standard' : 'glm-flash',  // 전략가
-    minjun: isDeep ? 'glm-standard' : 'glm-flash',  // 상권분석
-    hana:   'glm-flash',                             // 브랜딩: 창의성
-    jia:    len < 80 ? 'nemotron' : 'glm-flash',     // 마케터: 짧은 질문 → Nemotron
+    eric:   'glm-flash',                          // CFO (베타: flash 통일)
+    dojun:  'glm-flash',                          // 전략가
+    minjun: 'glm-flash',                          // 상권분석
+    hana:   'glm-flash',                          // 브랜딩
+    jia:    len < 80 ? 'nemotron' : 'glm-flash',  // 마케터: 짧은 질문 → Nemotron
   };
 
   const tier = personaDefaults[personaId] || 'glm-flash';
