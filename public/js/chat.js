@@ -13,6 +13,8 @@ let conversations = [];
 function formatMarkdown(text) {
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '$1')  // 단일 * 제거 (이탤릭 미지원)
+    .replace(/\*\*/g, '')         // 짝 안 맞는 ** 잔여물 제거
     .replace(/`(.*?)`/g, '<code>$1</code>')
     // 테이블 처리
     .replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)+)/g, (match, header, rows) => {
@@ -220,9 +222,9 @@ async function sendMessage() {
       }),
     });
 
-    removeTypingIndicator();
     const aiDiv = addMessage('assistant', '');
     let fullText = '';
+    let typingRemoved = false;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -241,10 +243,15 @@ async function sendMessage() {
         try {
           const data = JSON.parse(line.slice(6));
           if (data.type === 'delta') {
+            if (!typingRemoved) {
+              removeTypingIndicator();
+              typingRemoved = true;
+            }
             fullText += data.text;
             aiDiv.innerHTML = formatMarkdown(fullText);
             document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
           } else if (data.type === 'error') {
+            if (!typingRemoved) { removeTypingIndicator(); typingRemoved = true; }
             aiDiv.className = 'message error';
             aiDiv.innerHTML = `⚠️ ${data.message}`;
           }
