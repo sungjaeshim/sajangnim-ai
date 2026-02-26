@@ -13,6 +13,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 const API_KEY = process.env.GLM_API_KEY || process.env.ZAI_API_KEY;
 const API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
 
+if (!API_KEY) console.error('⚠️ GLM_API_KEY not set!');
+
 // 인메모리 세션 (MVP)
 const sessions = new Map();
 const SESSION_TTL = 30 * 60 * 1000;
@@ -78,7 +80,7 @@ app.post('/api/chat', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('GLM API error:', response.status, errText);
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 서비스 연결에 실패했습니다.' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: `API ${response.status}: ${errText.slice(0,100)}` })}\n\n`);
       return res.end();
     }
 
@@ -120,7 +122,7 @@ app.post('/api/chat', async (req, res) => {
     res.end();
   } catch (err) {
     console.error('API error:', err);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 서비스 연결에 실패했습니다.' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: `연결 실패: ${err.message}` })}\n\n`);
     res.end();
   }
 });
