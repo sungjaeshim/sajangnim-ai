@@ -64,8 +64,15 @@ document.addEventListener('DOMContentLoaded', function() {
   var path = location.pathname;
   _dbg('DOMContentLoaded | path=' + path);
   if (path.includes('index') || path === '/') {
-    loadPersonas();
+    _dbg('loadPersonas 호출 시도...');
+    try {
+      var p = loadPersonas();
+      _dbg('loadPersonas 호출됨 (Promise 반환)');
+      if (p && p.catch) p.catch(function(e) { _dbg('PROMISE ERR: ' + e.message); });
+    } catch(e) {
+      _dbg('loadPersonas THROW: ' + e.message);
+    }
   } else {
-    _dbg('path 불일치 — loadPersonas 미실행: ' + path);
+    _dbg('path 불일치: ' + path);
   }
 });
